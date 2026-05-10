@@ -1,0 +1,297 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'dashboard' %}
+
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block header_actions %}
+    <button class="header-btn" onclick="initializeDashboard()">
+        <i class="fas fa-sync-alt"></i>
+    </button>
+{% endblock %}
+
+{% block content %}
+            <div class="page active">
+                <!-- Main Stats Cards -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="flex-shrink-0 bg-primary bg-opacity-10 text-primary p-3 rounded-circle">
+                                    <i class="fas fa-users fa-lg"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <p class="text-muted small mb-1 fw-medium">Total Users</p>
+                                    <h4 class="mb-0 fw-bold" id="totalUsers">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="flex-shrink-0 bg-success bg-opacity-10 text-success p-3 rounded-circle">
+                                    <i class="fas fa-user-check fa-lg"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <p class="text-muted small mb-1 fw-medium">Active Users</p>
+                                    <h4 class="mb-0 fw-bold" id="activeUsers">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="flex-shrink-0 bg-info bg-opacity-10 text-info p-3 rounded-circle">
+                                    <i class="fas fa-exchange-alt fa-lg"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <p class="text-muted small mb-1 fw-medium">Total Transactions</p>
+                                    <h4 class="mb-0 fw-bold" id="totalTransactions">0</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <div class="card h-100 border-0 shadow-sm border-start border-4 border-warning">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="flex-shrink-0 bg-warning bg-opacity-10 text-warning p-3 rounded-circle">
+                                    <i class="fas fa-wallet fa-lg"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <p class="text-muted small mb-1 fw-medium">Total Balance</p>
+                                    <h4 class="mb-0 fw-bold" id="walletBalance">৳0</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini Stats Highlights -->
+                <div class="row g-4 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm bg-light">
+                            <div class="card-body py-2">
+                                <p class="text-muted small mb-0">New Today</p>
+                                <h5 class="mb-0" id="newUsersToday">0</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm bg-light">
+                            <div class="card-body py-2">
+                                <p class="text-muted small mb-0">TX Today</p>
+                                <h5 class="mb-0" id="txToday">0</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm bg-light">
+                            <div class="card-body py-2">
+                                <p class="text-muted small mb-0">Amount Today</p>
+                                <h5 class="mb-0" id="amountToday">৳0</h5>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="card border-0 shadow-sm bg-primary text-white">
+                            <div class="card-body py-2 text-center">
+                                <p class="text-white-50 extra-small mb-0">Estimated Profit</p>
+                                <h5 class="mb-0 fw-bold" id="totalProfit">৳0</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <!-- Transaction Status Distribution -->
+                    <div class="col-12 col-xl-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-white border-0 py-3">
+                                <h5 class="card-title mb-0 fw-bold text-dark"><i class="fas fa-chart-pie me-2 text-primary"></i>Transaction Status</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="list-group list-group-flush">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="small"><i class="fas fa-circle me-2 text-success small"></i>Success</span>
+                                        <span class="badge bg-success bg-opacity-10 text-success rounded-pill" id="statusSuccess">0</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="small"><i class="fas fa-circle me-2 text-warning small"></i>Pending</span>
+                                        <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill" id="statusPending">0</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="small"><i class="fas fa-circle me-2 text-danger small"></i>Failed</span>
+                                        <span class="badge bg-danger bg-opacity-10 text-danger rounded-pill" id="statusFailed">0</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="small"><i class="fas fa-circle me-2 text-secondary small"></i>Cancelled</span>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill" id="statusCancelled">0</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center px-0 border-bottom-0">
+                                        <span class="small"><i class="fas fa-circle me-2 text-info small"></i>Refunded</span>
+                                        <span class="badge bg-info bg-opacity-10 text-info rounded-pill" id="statusRefunded">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Transactions Table -->
+                    <div class="col-12 col-xl-8">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0 fw-bold text-dark"><i class="fas fa-history me-2 text-primary"></i>Recent Transactions</h5>
+                                <a href="/admin/transactions" class="btn btn-sm btn-link text-decoration-none">View All</a>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr class="small text-muted">
+                                                <th class="ps-3 border-0">TX ID</th>
+                                                <th class="border-0">TYPE</th>
+                                                <th class="border-0">AMOUNT</th>
+                                                <th class="border-0 text-center">STATUS</th>
+                                                <th class="border-0 text-end pe-3">DATE</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recentTransactions" class="small">
+                                            <tr><td colspan="5" class="text-center py-4">Loading transactions...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Newly Joined Users -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0 fw-bold text-dark"><i class="fas fa-user-plus me-2 text-primary"></i>Newly Joined Users</h5>
+                        <a href="/admin/users" class="btn btn-sm btn-link text-decoration-none">View All Users</a>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr class="small text-muted">
+                                        <th class="ps-3 border-0">USER ID</th>
+                                        <th class="border-0">NAME</th>
+                                        <th class="border-0">EMAIL</th>
+                                        <th class="border-0 text-center">PHONE</th>
+                                        <th class="border-0 text-end pe-3">JOINED</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentUsers" class="small">
+                                    <tr><td colspan="5" class="text-center py-4">Loading users...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+{% endblock %}
+
+{% block extra_js %}
+    <style>
+        .extra-small { font-size: 0.7rem; }
+        .text-dark { color: #1e293b !important; }
+    </style>
+    <script>
+        async function getDashboardStats() {
+            try {
+                const response = await fetch("/admin/dashboard/stats", {
+                    method: "GET",
+                    headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                    credentials: "include",
+                });
+
+                if (!response.ok) {
+                    console.error("Failed to fetch dashboard stats:", response.status);
+                    return;
+                }
+
+                const data = await response.json();
+                const stats = data.data || {};
+
+                document.getElementById("totalUsers").innerText = stats.total_users || 0;
+                document.getElementById("activeUsers").innerText = stats.active_users || 0;
+                document.getElementById("totalTransactions").innerText = stats.total_transactions || 0;
+                document.getElementById("walletBalance").innerText = "৳" + parseFloat(stats.total_wallets_balance || 0).toLocaleString('en-BD');
+                document.getElementById("newUsersToday").innerText = stats.new_users_today || 0;
+                document.getElementById("txToday").innerText = stats.transactions_today || 0;
+                document.getElementById("amountToday").innerText = "৳" + parseFloat(stats.amount_today || 0).toLocaleString('en-BD');
+                document.getElementById("totalProfit").innerText = "৳" + parseFloat(stats.total_profite || 0).toLocaleString('en-BD');
+
+                const status = stats.status_counts || {};
+                document.getElementById("statusSuccess").innerText = status.success || 0;
+                document.getElementById("statusPending").innerText = status.pending || 0;
+                document.getElementById("statusFailed").innerText = status.failed || 0;
+                document.getElementById("statusCancelled").innerText = status.cancelled || 0;
+                document.getElementById("statusRefunded").innerText = status.refunded || 0;
+
+                const txBody = document.getElementById("recentTransactions");
+                const txs = stats.recent_transactions || [];
+                txBody.innerHTML = "";
+                if (txs.length === 0) {
+                    txBody.innerHTML = '<tr><td colspan="5" class="table-empty">No transactions found</td></tr>';
+                } else {
+                    txs.forEach(tx => {
+                        const created = tx.created_at ? new Date(tx.created_at).toLocaleString() : "-";
+                        const statusClass = tx.status === 'success' ? 'success' : (tx.status === 'pending' ? 'warning' : 'danger');
+                        const row = `
+                            <tr>
+                                <td class="ps-3 text-primary">#${tx.transaction_id.substring(0, 8)}</td>
+                                <td class="text-capitalize">${tx.transaction_type || '-'}</td>
+                                <td class="fw-bold text-dark">৳${parseFloat(tx.amount || 0).toLocaleString('en-BD')}</td>
+                                <td class="text-center"><span class="badge bg-${statusClass} bg-opacity-10 text-${statusClass} border border-${statusClass} border-opacity-25 text-capitalize">${tx.status || '-'}</span></td>
+                                <td class="text-end pe-3 text-muted">${created}</td>
+                            </tr>
+                        `;
+                        txBody.insertAdjacentHTML('beforeend', row);
+                    });
+                }
+
+                const userBody = document.getElementById("recentUsers");
+                const users = stats.recent_users || [];
+                userBody.innerHTML = "";
+                if (users.length === 0) {
+                    userBody.innerHTML = '<tr><td colspan="5" class="table-empty">No users found</td></tr>';
+                } else {
+                    users.forEach(user => {
+                        const created = user.created_at ? new Date(user.created_at).toLocaleString() : "-";
+                        const row = `
+                            <tr>
+                                <td class="ps-3 text-muted">#${user.user_id.substring(0, 8)}</td>
+                                <td class="fw-medium text-dark">${user.full_name || '-'}</td>
+                                <td>${user.email || '-'}</td>
+                                <td class="text-center">${user.phone || '-'}</td>
+                                <td class="text-end pe-3 text-muted">${created}</td>
+                            </tr>
+                        `;
+                        userBody.insertAdjacentHTML('beforeend', row);
+                    });
+                }
+
+            } catch (err) {
+                console.error("Error fetching dashboard stats:", err);
+            }
+        }
+
+        function initializeDashboard() {
+            getDashboardStats();
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            initializeDashboard();
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.admin-dropdown')) {
+                    document.getElementById('adminDropdown').classList.remove('show');
+                }
+            });
+        });
+    </script>
+{% endblock %}

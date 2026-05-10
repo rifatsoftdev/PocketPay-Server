@@ -1,0 +1,192 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'wallets' %}
+
+{% block title %}Wallet Management{% endblock %}
+{% block page_title %}Wallets{% endblock %}
+
+{% block header_actions %}
+<button class="header-btn" onclick="loadWallets(1)" title="Sync List">
+    <i class="fas fa-sync-alt"></i>
+</button>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .balance-badge { font-weight: 600; padding: 0.375rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; }
+    .btn-adjust { color: var(--primary-color, #4361ee); border: 1px solid var(--primary-color, #4361ee); transition: all 0.2s; }
+    .btn-adjust:hover { background: var(--primary-color, #4361ee); color: white; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background: white; }
+    .main-content { padding: 2rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<p class="text-muted mb-4">Manage user wallet balances and history</p>
+
+<!-- Search and Filters -->
+<div class="card mb-4 border-0">
+    <div class="card-body p-4">
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <label class="form-label text-muted small fw-bold">Search</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" id="search" class="form-control border-start-0 shadow-none" placeholder="ID, Name, Email, Phone..." onkeyup="debounceSearch()">
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label text-muted small fw-bold">Min Balance</label>
+                <input type="number" id="min_balance" class="form-control shadow-none" placeholder="0.00" onchange="loadWallets(1)">
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label text-muted small fw-bold">Max Balance</label>
+                <input type="number" id="max_balance" class="form-control shadow-none" placeholder="Any" onchange="loadWallets(1)">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table Card -->
+<div class="card border-0 overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr class="text-muted small text-uppercase fw-bold">
+                    <th class="ps-3 border-0">User Info</th>
+                    <th class="border-0">Email & Phone</th>
+                    <th class="border-0">Current Balance</th>
+                    <th class="border-0">Last Active</th>
+                    <th class="border-0 text-end pe-3">Management</th>
+                </tr>
+            </thead>
+            <tbody id="wallet-table-body" class="small">
+                <tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary spinner-border-sm"></div></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer bg-white py-4 d-flex justify-content-between align-items-center border-top">
+        <span id="pagination-info" class="text-muted small fw-medium"></span>
+        <ul class="pagination pagination-sm mb-0" id="pagination-links"></ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Adjust Balance Modal -->
+<div class="modal fade" id="adjustModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Balance Adjustment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-info border-0 bg-opacity-10 bg-primary text-primary small mb-4">
+                    Target Account: <strong id="modal-user-name"></strong>
+                </div>
+                <form id="adjust-form">
+                    <input type="hidden" id="adjust-user-id">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Adjustment Amount</label>
+                        <input type="number" step="0.01" class="form-control form-control-lg shadow-none" id="adjust-amount" placeholder="Positive for credit, negative for debit" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Reason for Adjustment</label>
+                        <textarea class="form-control shadow-none" id="adjust-reason" rows="3" placeholder="Provide details for logs..." required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary px-4" id="submit-adjust" onclick="processAdjustment()">Apply Adjustment</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let searchTimer;
+    function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadWallets(1), 400); }
+
+    async function loadWallets(page) {
+        const search = document.getElementById('search').value.trim();
+        const min = document.getElementById('min_balance').value;
+        const max = document.getElementById('max_balance').value;
+
+        const params = new URLSearchParams({ page, limit: 10 });
+        if (search) params.append('search', search);
+        if (min !== '') params.append('min_balance', min);
+        if (max !== '') params.append('max_balance', max);
+        
+        try {
+            const response = await fetch(`/admin/wallets-list?${params.toString()}`, {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include"
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                const tbody = document.getElementById('wallet-table-body');
+                tbody.innerHTML = result.data.wallets.map(w => `
+                    <tr>
+                        <td class="ps-3"><div class="fw-bold">${w.full_name}</div><small class="text-muted font-monospace">${w.user_id}</small></td>
+                        <td><div>${w.email}</div><div class="small text-muted">${w.phone}</div></td>
+                        <td><span class="balance-badge bg-success bg-opacity-10 text-success">৳${w.balance.toLocaleString('en-BD', {minimumFractionDigits: 2})}</span></td>
+                        <td class="text-muted small">${w.last_updated ? new Date(w.last_updated).toLocaleString() : 'N/A'}</td>
+                        <td class="text-end pe-3"><button class="btn btn-sm btn-adjust" onclick="openAdjustModal('${w.user_id}', '${w.full_name}')"><i class="fas fa-edit me-1"></i> Adjust</button></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="5" class="text-center py-5">No wallets found</td></tr>';
+                
+                const p = result.pagination;
+                document.getElementById('pagination-info').innerText = `Page ${p.page} of ${p.total_pages} (${p.total} Total)`;
+                const links = document.getElementById('pagination-links');
+                links.innerHTML = Array.from({length: p.total_pages}, (_, i) => i + 1).map(num => 
+                    `<li class="page-item ${num===p.page?'active':''}"><a class="page-link shadow-none" href="#" onclick="loadWallets(${num})">${num}</a></li>`).join('');
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    function openAdjustModal(id, name) {
+        document.getElementById('adjust-user-id').value = id;
+        document.getElementById('modal-user-name').innerText = name;
+        new bootstrap.Modal(document.getElementById('adjustModal')).show();
+    }
+
+    async function processAdjustment() {
+        const userId = document.getElementById('adjust-user-id').value;
+        const amount = parseFloat(document.getElementById('adjust-amount').value);
+        const reason = document.getElementById('adjust-reason').value;
+        if (!amount || !reason) return alert("Fill required fields");
+        
+        const btn = document.getElementById('submit-adjust');
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Applying...';
+
+        try {
+            const resp = await fetch(`/admin/wallets/${userId}/adjust`, {
+                method: 'POST',
+                headers: { ...Auth.getAuthHeader(), 'Content-Type': 'application/json' },
+                credentials: "include",
+                body: JSON.stringify({ amount, reason, reference_id: 'ADMIN_' + Date.now() })
+            });
+            const res = await resp.json();
+            btn.disabled = false; btn.innerText = 'Apply Adjustment';
+            if (res.success) { 
+                bootstrap.Modal.getInstance(document.getElementById('adjustModal')).hide(); 
+                loadWallets(1); 
+                alert("Balance adjusted successfully");
+            }
+            else alert(res.detail || "Error adjusting balance");
+        } catch (err) {
+            btn.disabled = false; btn.innerText = 'Apply Adjustment';
+            alert("Connection error");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => loadWallets(1));
+</script>
+{% endblock %}

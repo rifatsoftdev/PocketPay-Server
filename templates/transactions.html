@@ -1,0 +1,272 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'transactions' %}
+
+{% block title %}Transactions{% endblock %}
+{% block page_title %}Transaction Logs{% endblock %}
+
+{% block header_actions %}
+<button class="header-btn" onclick="loadTransactions()" title="Refresh">
+    <i class="fas fa-sync-alt"></i>
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="profile-card">
+    <div class="card-header d-flex flex-column flex-lg-row gap-3 justify-content-between align-items-lg-center">
+        <h3 class="mb-0"><i class="fas fa-exchange-alt"></i> Transactions</h3>
+        <div class="d-flex flex-column flex-md-row gap-2">
+            <input type="text" id="txSearch" class="form-control shadow-none" placeholder="Search transaction or user" onkeyup="handleSearch()">
+            <select id="txTypeFilter" class="form-select shadow-none" onchange="applyFilters()">
+                <option value="">All Types</option>
+                <option value="send">Send</option>
+                <option value="receive">Receive</option>
+                <option value="deposit">Deposit</option>
+                <option value="withdraw">Withdraw</option>
+                <option value="billpay">Bill Pay</option>
+                <option value="recharge">Recharge</option>
+                <option value="refund">Refund</option>
+            </select>
+            <select id="txStatusFilter" class="form-select shadow-none" onchange="applyFilters()">
+                <option value="">All Status</option>
+                <option value="success">Success</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="refunded">Refunded</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card-body">
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-md-3">
+                <input type="date" id="txDateFrom" class="form-control shadow-none" onchange="applyFilters()" title="From Date">
+            </div>
+            <div class="col-12 col-md-3">
+                <input type="date" id="txDateTo" class="form-control shadow-none" onchange="applyFilters()" title="To Date">
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="bg-light">
+                    <tr class="text-muted small text-uppercase fw-bold">
+                        <th class="ps-3 border-0">TX ID</th>
+                        <th class="border-0">Type</th>
+                        <th class="border-0">Sender</th>
+                        <th class="border-0">Receiver</th>
+                        <th class="border-0 text-end">Amount</th>
+                        <th class="border-0 text-center">Status</th>
+                        <th class="border-0 text-end">Date</th>
+                        <th class="border-0 text-end pe-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsTableBody" class="small">
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">Loading transactions...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 gap-3">
+            <div id="paginationInfo" class="text-muted small">Showing 0 transactions</div>
+            <nav aria-label="Page navigation">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item">
+                        <button class="page-link shadow-none" id="prevPage" onclick="changePage(-1)" disabled>Previous</button>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link text-dark fw-medium" id="pageInfo">Page 1</span>
+                    </li>
+                    <li class="page-item">
+                        <button class="page-link shadow-none" id="nextPage" onclick="changePage(1)" disabled>Next</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="transactionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title fw-bold">Transaction Details</h6>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="transactionModalBody"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+    const pageSize = 20;
+    let totalPages = 1;
+    let searchTimeout = null;
+    let transactionsCache = [];
+
+    function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, function(char) {
+            return {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+            }[char];
+        });
+    }
+
+    function formatDate(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleString();
+    }
+
+    function formatAmount(tx) {
+        const amount = Number(tx.amount || 0).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+        return `${escapeHtml(tx.currency || "")} ${amount}`.trim();
+    }
+
+    function statusClass(status) {
+        const normalized = String(status || "").toLowerCase();
+        if (normalized === "success") return "success";
+        if (normalized === "pending") return "warning";
+        if (normalized === "failed" || normalized === "cancelled") return "danger";
+        return "secondary";
+    }
+
+    async function loadTransactions() {
+        const tbody = document.getElementById("transactionsTableBody");
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted">Loading transactions...</td></tr>';
+
+        const params = new URLSearchParams({
+            page: currentPage,
+            limit: pageSize
+        });
+
+        const search = document.getElementById("txSearch").value.trim();
+        const type = document.getElementById("txTypeFilter").value;
+        const status = document.getElementById("txStatusFilter").value;
+        const dateFrom = document.getElementById("txDateFrom").value;
+        const dateTo = document.getElementById("txDateTo").value;
+
+        if (search) params.append("search", search);
+        if (type) params.append("transaction_type", type);
+        if (status) params.append("status", status);
+        if (dateFrom) params.append("created_from", dateFrom);
+        if (dateTo) params.append("created_to", dateTo);
+
+        try {
+            const response = await fetch(`/admin/transactions-list?${params.toString()}`, {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include"
+            });
+
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.detail || result.message || "Failed to fetch transactions");
+            }
+
+            transactionsCache = result.data.transactions || [];
+            const pagination = result.pagination || {};
+            totalPages = pagination.total_pages || 1;
+            currentPage = pagination.page || currentPage;
+
+            renderTransactions(transactionsCache);
+            updatePagination(pagination.total || 0);
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-danger">${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    function renderTransactions(transactions) {
+        const tbody = document.getElementById("transactionsTableBody");
+
+        if (!transactions.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted">No transactions found.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = transactions.map(function(tx) {
+            const txId = escapeHtml(tx.transaction_id);
+            const shortId = txId.length > 12 ? `${txId.slice(0, 12)}...` : txId;
+            const status = escapeHtml(tx.status || "-");
+
+            return `
+                <tr>
+                    <td class="ps-3" title="${txId}">${shortId}</td>
+                    <td>${escapeHtml(tx.transaction_type || "-")}</td>
+                    <td title="${escapeHtml(tx.sender_user_id || "")}">${escapeHtml(tx.sender_user_id || "-")}</td>
+                    <td title="${escapeHtml(tx.receiver_user_id || "")}">${escapeHtml(tx.receiver_user_id || "-")}</td>
+                    <td class="text-end fw-semibold">${formatAmount(tx)}</td>
+                    <td class="text-center"><span class="badge text-bg-${statusClass(tx.status)}">${status}</span></td>
+                    <td class="text-end">${formatDate(tx.created_at)}</td>
+                    <td class="text-end pe-3">
+                        <button class="btn btn-sm btn-light border" onclick="viewTransaction('${txId}')" title="View">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    }
+
+    function updatePagination(total) {
+        document.getElementById("paginationInfo").innerText = `Showing ${transactionsCache.length} of ${total} transactions`;
+        document.getElementById("pageInfo").innerText = `Page ${currentPage} of ${totalPages || 1}`;
+        document.getElementById("prevPage").disabled = currentPage <= 1;
+        document.getElementById("nextPage").disabled = currentPage >= totalPages;
+    }
+
+    function applyFilters() {
+        currentPage = 1;
+        loadTransactions();
+    }
+
+    function handleSearch() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyFilters, 350);
+    }
+
+    function changePage(direction) {
+        const nextPage = currentPage + direction;
+        if (nextPage < 1 || nextPage > totalPages) return;
+        currentPage = nextPage;
+        loadTransactions();
+    }
+
+    function viewTransaction(transactionId) {
+        const tx = transactionsCache.find(item => item.transaction_id === transactionId);
+        if (!tx) return;
+
+        document.getElementById("transactionModalBody").innerHTML = `
+            <dl class="row mb-0">
+                <dt class="col-sm-4">Transaction ID</dt><dd class="col-sm-8">${escapeHtml(tx.transaction_id)}</dd>
+                <dt class="col-sm-4">Type</dt><dd class="col-sm-8">${escapeHtml(tx.transaction_type || "-")}</dd>
+                <dt class="col-sm-4">Sender</dt><dd class="col-sm-8">${escapeHtml(tx.sender_user_id || "-")}</dd>
+                <dt class="col-sm-4">Receiver</dt><dd class="col-sm-8">${escapeHtml(tx.receiver_user_id || "-")}</dd>
+                <dt class="col-sm-4">Amount</dt><dd class="col-sm-8">${formatAmount(tx)}</dd>
+                <dt class="col-sm-4">Status</dt><dd class="col-sm-8">${escapeHtml(tx.status || "-")}</dd>
+                <dt class="col-sm-4">Description</dt><dd class="col-sm-8">${escapeHtml(tx.description || "-")}</dd>
+                <dt class="col-sm-4">Created At</dt><dd class="col-sm-8">${formatDate(tx.created_at)}</dd>
+            </dl>
+        `;
+
+        bootstrap.Modal.getOrCreateInstance(document.getElementById("transactionModal")).show();
+    }
+
+    document.addEventListener("DOMContentLoaded", loadTransactions);
+</script>
+{% endblock %}

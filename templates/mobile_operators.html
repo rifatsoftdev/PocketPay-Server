@@ -1,0 +1,84 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'mobile-operators' %}
+
+{% block title %}Mobile Operators{% endblock %}
+{% block page_title %}Mobile Operator Management{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="showAddOperatorModal()">
+    <i class="fas fa-plus fa-sm"></i> Add New Operator
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h2 class="h4 mb-0 text-gray-800">Operators List</h2>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="operatorsTable">
+                <thead class="bg-light">
+                    <tr>
+                        <th>Logo</th>
+                        <th>Name</th>
+                        <th>Country Code</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="operatorsTableBody">
+                    <tr><td colspan="5" class="text-center py-5">Loading operators...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div class="modal fade" id="operatorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="operatorModalTitle">Add New Operator</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="operatorModal.hide()"></button>
+            </div>
+            <div class="modal-body">
+                <form id="operatorForm">
+                    <input type="hidden" id="operatorId">
+                    <div class="mb-3">
+                        <label class="form-label">Operator Name</label>
+                        <input type="text" class="form-control" id="opName" required placeholder="e.g. Robi">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Country Code</label>
+                        <input type="text" class="form-control" id="opCountry" placeholder="e.g. +88" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Logo URL</label>
+                        <input type="url" class="form-control" id="opLogo" required placeholder="https://...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Operator API URL</label>
+                        <input type="url" class="form-control" id="opApi" required placeholder="http://api.example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label text-danger">Admin Password (Verify)</label>
+                        <input type="password" class="form-control" id="adminPassword" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="operatorModal.hide()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveOperator()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/mobile_operators.js"></script>
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'donations' %}
+
+{% block title %}Donation Organizations{% endblock %}
+{% block page_title %}Donations{% endblock %}
+
+{% block header_actions %}
+<button class="header-btn" onclick="fetchDonations()" title="Refresh List">
+    <i class="fas fa-sync-alt"></i>
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Organizations List Section -->
+<div class="profile-card" id="listSection">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="mb-0"><i class="fas fa-list"></i> Organizations List</h3>
+        <button class="btn btn-primary btn-sm" onclick="showForm()">
+            <i class="fas fa-plus"></i> Add New Organization
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr class="text-muted small text-uppercase fw-bold">
+                        <th class="ps-4">Logo</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th class="text-end pe-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="donationsTableBody" class="small">
+                    <tr><td colspan="4" class="text-center py-5">Loading organizations...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Create Form Section (Hidden by default) -->
+<div class="profile-card" id="formSection" style="display: none;">
+    <div class="card-header">
+        <h3><i class="fas fa-hand-holding-heart"></i> New Donation Organization</h3>
+    </div>
+    <div class="card-body" style="padding: 20px 24px;">
+        <form id="donationCreateForm" class="modal-form">
+            <div class="form-group">
+                <label>Organization Name</label>
+                <input type="text" id="organizationName" required minlength="2" placeholder="Example Foundation">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="organizationDescription" rows="5" required placeholder="Short description shown to users"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Organization Logo URL</label>
+                <input type="url" id="organizationLogo" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>Organization API URL</label>
+                <input type="url" id="organizationApi" placeholder="https://...">
+            </div>
+            <div class="profile-content-grid" style="gap: 16px;">
+                <div class="form-group">
+                    <label>Minimum Amount</label>
+                    <input type="number" id="minAmount" min="0" step="0.01" placeholder="10">
+                </div>
+                <div class="form-group">
+                    <label>Maximum Amount</label>
+                    <input type="number" id="maxAmount" min="0" step="0.01" placeholder="5000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Meta Data JSON</label>
+                <textarea id="metaData" rows="4" placeholder='{"category":"charity"}'></textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Save Organization
+                </button>
+                <button type="button" class="btn btn-light border" onclick="hideForm()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .org-logo-sm { width: 35px; height: 35px; object-fit: contain; border-radius: 4px; background: #f8f9fa; padding: 2px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function showForm() {
+        document.getElementById('listSection').style.display = 'none';
+        document.getElementById('formSection').style.display = 'block';
+    }
+
+    function hideForm() {
+        document.getElementById('formSection').style.display = 'none';
+        document.getElementById('listSection').style.display = 'block';
+        document.getElementById('donationCreateForm').reset();
+    }
+
+    async function fetchDonations() {
+        const tbody = document.getElementById("donationsTableBody");
+        try {
+            const response = await fetch("/donation/organization", {
+                method: "GET",
+                headers: { ...Auth.getAuthHeader() }
+            });
+            const result = await response.json();
+            
+            if (!response.ok || !result.success) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted">No organizations found.</td></tr>';
+                return;
+            }
+
+            const orgs = result.data?.donations || [];
+            tbody.innerHTML = "";
+
+            if (orgs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted">No organizations found.</td></tr>';
+                return;
+            }
+
+            orgs.forEach(org => {
+                const logoHtml = org.organization_logo 
+                    ? `<img src="${org.organization_logo}" class="org-logo-sm" alt="Logo">`
+                    : `<div class="org-logo-sm d-flex align-items-center justify-content-center"><i class="fas fa-image text-muted"></i></div>`;
+                
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td class="ps-4">${logoHtml}</td>
+                    <td><div class="fw-bold">${org.organization_name}</div><small class="text-muted font-monospace">${org.organization_id}</small></td>
+                    <td><div class="text-truncate" style="max-width: 300px;">${org.description || '-'}</div></td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-light border text-danger" onclick="removeRequest('${org.organization_id}')" title="Remove Request">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-5 text-danger">Error: ${err.message}</td></tr>`;
+        }
+    }
+
+    function nullableValue(id) {
+        const value = document.getElementById(id).value.trim();
+        return value || null;
+    }
+
+    function nullableNumber(id) {
+        const value = document.getElementById(id).value;
+        return value === "" ? null : Number(value);
+    }
+
+    async function createDonation(event) {
+        event.preventDefault();
+
+        let metaData = null;
+        const metaDataValue = document.getElementById("metaData").value.trim();
+        if (metaDataValue) {
+            try {
+                metaData = JSON.parse(metaDataValue);
+            } catch (err) {
+                showToast("Meta Data must be valid JSON", "error");
+                return;
+            }
+        }
+
+        if (!document.getElementById("organizationName").value.trim()) {
+            showToast("Organization Name is required", "error");
+            return;
+        }
+        if (!document.getElementById("organizationDescription").value.trim()) {
+            showToast("Description is required", "error");
+            return;
+        }
+
+        const minAmount = nullableNumber("minAmount");
+        const maxAmount = nullableNumber("maxAmount");
+
+        if (minAmount !== null && maxAmount !== null && minAmount > maxAmount) {
+            showToast("Minimum amount cannot be greater than maximum amount", "error");
+            return;
+        }
+
+        try {
+            const payload = {
+                organization_name: document.getElementById("organizationName").value.trim(),
+                description: document.getElementById("organizationDescription").value.trim(),
+                organization_logo: nullableValue("organizationLogo"),
+                organization_api: nullableValue("organizationApi"),
+                min_amount: minAmount,
+                max_amount: maxAmount,
+                meta_data: metaData
+            };
+
+            const response = await fetch("/donation/new-organization", {
+                method: "POST",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.detail || data.message || "Failed to add donation");
+            }
+
+            showToast("Donation organization added successfully", "success");
+            hideForm();
+            fetchDonations();
+        } catch (err) {
+            console.error("Error adding donation:", err);
+            showToast(err.message || "Failed to add donation", "error");
+        }
+    }
+
+    async function removeRequest(id) {
+        if (!confirm("Are you sure you want to request removal of this organization?")) return;
+        try {
+            const response = await fetch("/donation/remove-organization", {
+                method: "POST",
+                headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ organization_id: id })
+            });
+            const data = await response.json();
+
+            if (!response.ok || !data.success) throw new Error(data.detail || "Operation failed");
+            
+            showToast(data.message || "Removal request sent successfully", "success");
+            fetchDonations();
+        } catch (err) {
+            console.error("Error requesting removal:", err);
+            showToast(err.message || "Failed to request removal", "error");
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        fetchDonations();
+        document.getElementById("donationCreateForm").addEventListener("submit", createDonation);
+    });
+</script>
+{% endblock %}

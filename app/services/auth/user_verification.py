@@ -1,0 +1,200 @@
+from fastapi import HTTPException, status, Request, BackgroundTasks
+from sqlalchemy.orm import Session
+from jose import JWTError
+
+from app.constants import AnsiColor, String
+
+from app.utils.hashing import Hashing
+from app.utils.token import Token
+
+from app.enums.enums import KYCStatus
+from app.model import *
+
+
+
+class UserVerificationService:
+    def __init__(
+        self,
+        db: Session = None,
+        background_tasks: BackgroundTasks = None,
+        request: Request = None,
+        authorization: str = None
+    ):
+        self.db = db
+        self.background_tasks = background_tasks
+        self.request = request
+        self.authorization = authorization
+
+    def verify_access_token(self, access_token: str) -> str:
+        # verify token
+        token_service = Token()
+        payload = token_service.decode_token(access_token)
+
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=String.INVALID_TOKEN
+            )
+
+        if (payload.get("type") != "access"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=String.INVALID_TOKEN_TYPE
+            )
+
+        # if payload.get("user_id") != user_id:
+        #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=String.INVALID_TOKEN)
+
+        return payload.get("user_id")
+
+
+    def verify_user(
+        self,
+        user_id: str,
+        access_token: str,
+        device_id: str = None,
+        device_uuid: str = None,
+        password: str = None,
+        advance_check: bool = False,
+        db: Session = None,
+        android_id: str = None,
+        android_uuid: str = None,
+    ) -> UserTable:
+        
+        try:
+            db_session = db or self.db
+            device_id = device_id or android_id
+            device_uuid = device_uuid or android_uuid
+
+            if db_session is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=String.SERVER_ERROR
+                )
+
+            # fetch user
+            user = db_session.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+            
+            # print(user)
+            # print(user_id)
+
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.USER_NOT_FOUND
+                )
+
+            user_id = self.verify_access_token(access_token)
+            
+            if user_id != user.user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.INVALID_TOKEN
+                )
+            
+            if (advance_check and not user.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.PASSWORD_NOT_SET
+                )
+
+            # verify password
+            if password:
+                if not Hashing.verify_password(password, user.password_hash):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail=String.INVALID_PASSWORD
+                    )
+            
+            # fetch settings
+            settings = db_session.query(SettingsTable).filter(
+                SettingsTable.user_id == user_id
+            ).first()
+
+            if not settings:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.SETTINGS_NOT_FOUND
+                )
+
+            if (settings.account_locked):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.ACCOUNT_LOCKED
+                )
+
+            if (advance_check and settings.kyc_status != KYCStatus.VERIFIED):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.VERIFY_KYC_FIRST
+                )
+
+            # fetch session
+            session = db_session.query(SessionTable).filter(
+                SessionTable.user_id == user_id,
+                SessionTable.device_id == device_id,
+                SessionTable.device_uuid == device_uuid,
+                SessionTable.is_login == True
+            ).first()
+
+            if not session:
+                # print(7)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.SESSION_NOT_FOUND
+                )
+            
+            if not session.otp_verified:
+                # print(8)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.OTP_NOT_VERIFIED
+                )
+            
+            if not session.is_login:
+                # print(9)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.USER_NOT_LOGIN
+                )
+
+            return user
+
+        except JWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=String.INVALID_OR_EXPIRED_TOKEN
+            )
+        
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            # print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=String.SERVER_ERROR
+            )
+
+
+def verify_user(
+    db: Session,
+    user_id: str,
+    access_token: str,
+    android_id: str = None,
+    android_uuid: str = None,
+    device_id: str = None,
+    device_uuid: str = None,
+    password: str = None,
+    advance_check: bool = False,
+) -> UserTable:
+    return UserVerificationService(db).verify_user(
+        user_id=user_id,
+        access_token=access_token,
+        device_id=device_id or android_id,
+        device_uuid=device_uuid or android_uuid,
+        password=password,
+        advance_check=advance_check,
+    )

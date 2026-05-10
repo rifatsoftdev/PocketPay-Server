@@ -1,0 +1,255 @@
+{% extends 'components/base_admin.html' %}
+{% set active_page = 'bill-providers' %}
+
+{% block title %}Bill Providers{% endblock %}
+{% block page_title %}Bill Providers{% endblock %}
+
+{% block header_actions %}
+    <button class="header-btn" onclick="getBillProviders()"><i class="fas fa-sync-alt"></i></button>
+{% endblock %}
+
+{% block content %}
+    <div class="page-header">
+        <h2>Bill Providers Management</h2>
+        <button class="btn btn-primary" onclick="showAddProviderModal()">
+            <i class="fas fa-plus"></i> Add New Provider
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>All Bill Providers</h3>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Provider ID</th>
+                            <th>Company Name</th>
+                            <th>Category</th>
+                            <th>Logo</th>
+                            <th>Status</th>
+                            <th>Min Amount</th>
+                            <th>Max Amount</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="billProvidersTableBody">
+                        <tr><td colspan="8" style="text-align:center; padding: 20px;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block modals %}
+    <!-- Add/Edit Provider Modal -->
+    <div id="addEditProviderModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="addEditProviderModalTitle">Add New Bill Provider</h3>
+                <button class="close-button" onclick="closeModal('addEditProviderModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="billProviderForm" onsubmit="handleProviderSubmit(event)">
+                    <input type="hidden" id="providerId" name="provider_id">
+                    <div class="form-group">
+                        <label for="companyName">Company Name</label>
+                        <input type="text" id="companyName" name="company_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <input type="text" id="category" name="category" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="companyLogo">Company Logo URL</label>
+                        <input type="url" id="companyLogo" name="company_logo" placeholder="e.g., https://example.com/logo.png">
+                    </div>
+                    <div class="form-group">
+                        <label for="companyApi">Company API Endpoint</label>
+                        <input type="url" id="companyApi" name="company_api" placeholder="e.g., https://api.example.com/bill">
+                    </div>
+                    <div class="form-group">
+                        <label for="companyUserId">Company User ID (if applicable)</label>
+                        <input type="text" id="companyUserId" name="company_user_id">
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="minAmount">Minimum Amount</label>
+                        <input type="number" id="minAmount" name="min_amount" step="0.01" value="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="maxAmount">Maximum Amount</label>
+                        <input type="number" id="maxAmount" name="max_amount" step="0.01" value="100000" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('addEditProviderModal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="submitProviderBtn">Add Provider</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Provider Details Modal -->
+    <div id="viewProviderModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Bill Provider Details</h3>
+                <button class="close-button" onclick="closeModal('viewProviderModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="viewProviderModalBody">
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script>
+        async function getBillProviders() {
+            const tbody = document.getElementById("billProvidersTableBody");
+            try {
+                const response = await fetch("/bill/providers", {
+                    method: "GET",
+                    headers: { ...Auth.getAuthHeader() },
+                    credentials: "include",
+                });
+
+                if (!response.ok) throw new Error("Failed to fetch bill providers");
+
+                const result = await response.json();
+                const providers = result.data.bill_categories || [];
+
+                tbody.innerHTML = "";
+
+                if (providers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px;">No bill providers found.</td></tr>';
+                    return;
+                }
+
+                providers.forEach(provider => {
+                    const tr = document.createElement("tr");
+                    const statusDisplay = provider.status || "active";
+                    const statusBadgeClass = statusDisplay === "active" ? "badge-active" : "badge-inactive";
+
+                    tr.innerHTML = `
+                        <td title="${provider.company_id}">${provider.company_id}</td>
+                        <td>${provider.company_name || '-'}</td>
+                        <td>${provider.category || '-'}</td>
+                        <td>
+                            ${provider.company_logo ? `<img src="${provider.company_logo}" alt="Logo" class="provider-logo">` : '-'}
+                        </td>
+                        <td><span class="badge ${statusBadgeClass}">${statusDisplay}</span></td>
+                        <td>${provider.min_amount || '0.00'}</td>
+                        <td>${provider.max_amount || '0.00'}</td>
+                        <td>
+                            <div class="actions">
+                                <button class="action-btn" onclick="viewProvider('${provider.company_id}')" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="action-btn" onclick="editProvider('${provider.company_id}')" title="Edit Provider">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="action-btn danger" onclick="deleteProvider('${provider.company_id}')" title="Delete Provider">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px; color: red;">Error loading data.</td></tr>';
+            }
+        }
+
+        function showAddProviderModal() {
+            document.getElementById("addEditProviderModalTitle").innerText = "Add New Bill Provider";
+            document.getElementById("submitProviderBtn").innerText = "Add Provider";
+            document.getElementById("billProviderForm").reset();
+            document.getElementById("providerId").value = "";
+            showModal('addEditProviderModal');
+        }
+
+        async function handleProviderSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const providerId = form.provider_id.value;
+            const isEdit = !!providerId;
+
+            const payload = {
+                category: form.category.value,
+                company_logo: form.company_logo.value,
+                company_name: form.company_name.value,
+                company_api: form.company_api.value,
+                company_user_id: form.company_user_id.value,
+                description: form.description.value,
+                min_amount: parseFloat(form.min_amount.value),
+                max_amount: parseFloat(form.max_amount.value),
+                // Fields required by schema if needed
+                user_id: "admin", access_token: "admin", android_id: "admin", android_uuid: "admin", password: "admin"
+            };
+
+            try {
+                if (isEdit) {
+                    showToast("Edit API missing. Implement PUT /bill/providers/{id}", "warning");
+                    return;
+                }
+
+                const response = await fetch("/bill/new-provider", {
+                    method: "POST",
+                    headers: { ...Auth.getAuthHeader(), "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || "Failed to process");
+
+                showToast("Bill provider added successfully!", "success");
+                closeModal('addEditProviderModal');
+                getBillProviders();
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        function showModal(id) { document.getElementById(id).classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            getBillProviders();
+            document.addEventListener("click", function(e) {
+                if (!e.target.closest(".admin-dropdown")) {
+                    document.getElementById("adminDropdown").classList.remove("show");
+                }
+            });
+        });
+
+        // Placeholder functions for actions
+        function viewProvider(id) { showToast("View API missing", "info"); }
+        function editProvider(id) { showToast("Edit API missing", "info"); }
+        function deleteProvider(id) { showToast("Delete API missing", "info"); }
+        function showToast(m, t) {
+            const c = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${t}`;
+            toast.innerText = m;
+            c.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+{% endblock %}
+
+{% block extra_css %}
+    <style>
+        .provider-logo { max-width: 40px; max-height: 40px; border-radius: 4px; object-fit: contain; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: white; padding: 24px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    </style>
+{% endblock %}
