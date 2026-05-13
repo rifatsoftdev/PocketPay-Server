@@ -7,8 +7,7 @@ def get_ip():
     try:
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
-    except Exception as e:
-        print(f"Error occurred while getting IP: {e}")
+    except Exception:
         ip = "127.0.0.1"
     finally:
         s.close()
@@ -23,3 +22,5 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     ) 
+
+# uvicorn app.main:app --reload

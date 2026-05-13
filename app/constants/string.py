@@ -5,7 +5,11 @@ class String:
 
     # detalse message
     USER_NOT_FOUND = "User Not Found"
+    ADMIN_NOT_FOUND = "Admin Not Found"
+    ADMIN_NOT_LOGIN = "Admin Not Login"
     INVALID_PASSWORD = "Invalid Password"
+    INVALID_EMAIL_ADDRESS = "Invalid Email Address"
+    INVALID_PHONE_NUMBER = "Invalid Phone Number"
     WALLET_NOT_FOUND = "Wallet Not Found"
     INVALID_TOKEN = "Invalid Token"
     ACCOUNT_LOCKED = "Account Locked"

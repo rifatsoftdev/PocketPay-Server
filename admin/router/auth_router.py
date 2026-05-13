@@ -105,17 +105,35 @@ async def admin_login(
         # Get permissions based on role
         permissions = ROLE_PERMISSIONS.get(AdminRole(admin.role), [])
 
-        # Create session
         session_id = Generators.generate_id("session")
-        session = AdminSessionTable(
-            admin_id=admin.admin_id,
-            session_id=session_id,
-            device_uuid=uuid,
-            device_id=android_id,
-            last_ip_address=ip,
-            login_at=datetime.now(timezone.utc)
-        )
-        db.add(session)
+        now = datetime.now(timezone.utc)
+
+        # Current SQLite schema keeps one admin session row per admin_id.
+        # Reuse it on repeated login instead of inserting a duplicate admin_id.
+        session = db.query(AdminSessionTable).filter(
+            AdminSessionTable.admin_id == admin.admin_id
+        ).first()
+
+        if session:
+            session.session_id = session_id
+            session.device_uuid = uuid
+            session.device_id = android_id
+            session.last_ip_address = ip
+            session.is_login = True
+            session.login_at = now
+            session.logout_at = None
+        else:
+            session = AdminSessionTable(
+                admin_id=admin.admin_id,
+                session_id=session_id,
+                device_uuid=uuid,
+                device_id=android_id,
+                last_ip_address=ip,
+                is_login=True,
+                login_at=now
+            )
+            db.add(session)
+
         db.commit()
         db.refresh(session)
 
@@ -240,7 +258,7 @@ async def admin_logout(
 
         if session:
             session.logout_at = datetime.now(timezone.utc)
-            session.is_active = False
+            session.is_login = False
             db.commit()
 
     # 2️⃣ Response + cookie clear
@@ -320,7 +338,7 @@ async def refresh_admin_token(
         # Verify refresh token hash against session
         session = db.query(AdminSessionTable).filter(
             AdminSessionTable.admin_id == admin_id,
-            AdminSessionTable.is_active == True
+            AdminSessionTable.is_login == True
         ).first()
 
         if not session:
@@ -560,12 +578,11 @@ async def create_admin(
             admin_id=admin_id,
             session_id=f"created_by_{current_admin.admin_id}",
             device_uuid=None,
-            android_id=None,
+            device_id=None,
             last_ip_address=ip,
             login_at=datetime.now(timezone.utc),
             logout_at=datetime.now(timezone.utc),
-            is_active=False,
-            note=f"Created by admin {current_admin.admin_id}"
+            is_login=False
         )
         db.add(new_notification)
         db.commit()
@@ -803,9 +820,9 @@ async def reset_admin_password(
         # Invalidate all sessions for this admin
         db.query(AdminSessionTable).filter(
             AdminSessionTable.admin_id == admin_id,
-            AdminSessionTable.is_active == True
+            AdminSessionTable.is_login == True
         ).update({
-            "is_active": False,
+            "is_login": False,
             "logout_at": datetime.now(timezone.utc)
         })
         
@@ -869,9 +886,9 @@ async def delete_admin(
         # Invalidate all sessions
         db.query(AdminSessionTable).filter(
             AdminSessionTable.admin_id == admin_id,
-            AdminSessionTable.is_active == True
+            AdminSessionTable.is_login == True
         ).update({
-            "is_active": False,
+            "is_login": False,
             "logout_at": datetime.now(timezone.utc)
         })
         
@@ -929,9 +946,9 @@ async def change_own_password(
         # Invalidate all sessions except current
         db.query(AdminSessionTable).filter(
             AdminSessionTable.admin_id == current_admin.admin_id,
-            AdminSessionTable.is_active == True
+            AdminSessionTable.is_login == True
         ).update({
-            "is_active": False,
+            "is_login": False,
             "logout_at": datetime.now(timezone.utc)
         })
         

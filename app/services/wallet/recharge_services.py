@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, status
 from sqlalchemy.orm import Session
 from decimal import Decimal
 
 from app.core.database import get_db
 from app.constants import String, AnsiColor
-from app.model import WalletTable, TransactionTable, MobileOperatorTable
+from app.model import WalletTable, TransactionTable, MobileOperatorTable, AdminTable, AdminSessionTable
 from app.enums import NotificationType, ActivityStatus, TransactionType, TransactionStatus, TransactionDirection, PaymentMethods
-from app.schema import OperatorOut, MobileRechargeRequest, NewOperatorRequest, OperatorDeactivateRequest, GlobalResponse
-from app.utils import Generators, Helpers
+from app.schema import MobileRechargeRequest, NewOperatorRequest, OperatorDeactivateRequest, OperatorActivateRequest, GlobalResponse
+from app.utils import Generators, Hashing, Helpers, Token
 
 from app.services.wallet.wallet_service import WalletService, ServiceChargeData
 from app.services.auth.user_verification import UserVerificationService
@@ -27,15 +27,73 @@ class RechargeServices(WalletService):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+
+    def _is_admin_request(self) -> bool:
+        try:
+            if not self.authorization or not self.authorization.startswith("Bearer "):
+                return False
+
+            access_token = self.authorization.replace("Bearer ", "", 1)
+            token_payload = Token().decode_token(access_token)
+
+            if not token_payload or token_payload.get("type") != "access":
+                return False
+
+            admin_id = token_payload.get("admin_id")
+            if not admin_id:
+                return False
+
+            admin = self.db.query(AdminTable).filter(
+                AdminTable.admin_id == admin_id,
+                AdminTable.is_active == True
+            ).first()
+
+            if not admin:
+                return False
+
+            sessions = self.db.query(AdminSessionTable).filter(
+                AdminSessionTable.admin_id == admin_id,
+                AdminSessionTable.is_login == True,
+                AdminSessionTable.access_token_hash.isnot(None)
+            ).all()
+
+            return any(
+                Hashing.verify_hash(access_token, session.access_token_hash)
+                for session in sessions
+            )
+
+        except Exception:
+            return False
+
+    def _operator_to_dict(self, operator: MobileOperatorTable, include_admin_fields: bool = False) -> dict:
+        data = {
+            "operator_id": operator.operator_id,
+            "operator_name": operator.operator_name,
+            "country_code": operator.country_code,
+            "logo_url": operator.logo_url
+        }
+
+        if include_admin_fields:
+            data.update({
+                "status": operator.status.value if operator.status else None,
+                "operator_api": operator.operator_api,
+                "meta_data": operator.meta_data,
+                "created_at": operator.created_at.isoformat() if operator.created_at else None,
+                "updated_at": operator.updated_at.isoformat() if operator.updated_at else None
+            })
+
+        return data
     
     def get_operators(self, country_code: str) -> GlobalResponse:
         try:
             if country_code:
                 country_code = "+" + country_code[1::]
 
-            query = self.db.query(MobileOperatorTable).filter(
-                MobileOperatorTable.status == ActivityStatus.ACTIVE
-            )
+            is_admin_request = self._is_admin_request()
+            query = self.db.query(MobileOperatorTable)
+
+            if not is_admin_request:
+                query = query.filter(MobileOperatorTable.status == ActivityStatus.ACTIVE)
 
             # Optional filter
             if country_code:
@@ -43,15 +101,21 @@ class RechargeServices(WalletService):
                     MobileOperatorTable.country_code == country_code
                 )
 
-            operators = query.all()
+            operators = query.order_by(MobileOperatorTable.created_at.desc()).all()
 
-            if not operators:
-                raise HTTPException(
-                    status_code=404, 
-                    detail="Mobile operators not found"
+            # if not operators:
+            #     raise HTTPException(
+            #         status_code=status.HTTP_404_NOT_FOUND, 
+            #         detail="Mobile operators not found"
+            #     )
+
+            operators_list = [
+                self._operator_to_dict(
+                    operator=operator,
+                    include_admin_fields=is_admin_request
                 )
-
-            operators_list = [OperatorOut.from_orm(p) for p in operators]
+                for operator in operators
+            ]
 
             return GlobalResponse(
                 success=True,
@@ -99,14 +163,20 @@ class RechargeServices(WalletService):
             ).first()
 
             if not operator:
-                raise HTTPException(status_code=404, detail="Mobile operator not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Mobile operator not found"
+                )
 
             wallet = self.db.query(WalletTable).filter(
                 WalletTable.user_id == user.user_id
             ).with_for_update().first()
 
             if not wallet:
-                raise HTTPException(status_code=404, detail=String.WALLET_NOT_FOUND)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.WALLET_NOT_FOUND
+                )
 
             charge: ServiceChargeData = self.service_charge(amount)
 
@@ -183,16 +253,22 @@ class RechargeServices(WalletService):
 
     def add_new_operator(self, payload: NewOperatorRequest) -> GlobalResponse:
         try:
-            user_verification_service = UserVerificationService(self.db)
-
-            user = user_verification_service.verify_user(
-                user_id=payload.user_id,
-                access_token=payload.access_token,
-                android_id=payload.android_id,
-                android_uuid=payload.android_uuid,
-                password=payload.user_password
+            # Helpers.print_payload(payload)
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
             )
 
+            user: AdminTable = user_verification_service.verify_admin(
+                user_id=payload.user_id,
+                access_token=payload.access_token,
+                device_id=payload.android_id,
+                device_uuid=payload.android_uuid,
+                password=payload.user_password
+            )
+            
             # 🔍 Duplicate operator check (same name + country)
             existing_operator = self.db.query(MobileOperatorTable).filter(
                 MobileOperatorTable.operator_name == payload.operator_name,
@@ -200,7 +276,10 @@ class RechargeServices(WalletService):
             ).first()
 
             if existing_operator:
-                raise HTTPException(status_code=409, detail="Operator already exists for this country")
+                raise HTTPException(
+                    status_code=409,
+                    detail="Operator already exists for this country"
+                )
 
             operator_id = Generators.generate_id("operator")
 
@@ -214,10 +293,9 @@ class RechargeServices(WalletService):
                 status=ActivityStatus.PENDING,   # default
                 meta_data={
                     "request_user": {
-                        "user_id": user.user_id,
-                        "phone": user.phone_number,
-                        "email": user.email_address,
-                        "name": user.full_name
+                        "user_id": user.admin_id,
+                        "email_address": user.email,
+                        "full_name": user.full_name
                     }
                 }
             )
@@ -266,15 +344,15 @@ class RechargeServices(WalletService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    def deactivate_operator(self, payload: OperatorDeactivateRequest,):
+    def deactivate_operator(self, payload: OperatorDeactivateRequest):
         try:
             user_verification_service = UserVerificationService(self.db)
 
-            user = user_verification_service.verify_user(
+            user = user_verification_service.verify_admin(
                 user_id=payload.user_id,
                 access_token=payload.access_token,
-                android_id=payload.android_id,
-                android_uuid=payload.android_uuid,
+                device_id=payload.device_id,
+                device_uuid=payload.device_uuid,
                 password=payload.user_password
             )
 
@@ -283,7 +361,10 @@ class RechargeServices(WalletService):
             ).first()
 
             if not operator:
-                raise HTTPException(status_code=404, detail="Mobile operator not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Mobile operator not found"
+                )
 
             operator.status = ActivityStatus.INACTIVE
             operator.updated_at = Helpers.utc6dhaka()
@@ -307,4 +388,46 @@ class RechargeServices(WalletService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-    
+    def activate_operator(self, payload: OperatorActivateRequest):
+        try:
+            user_verification_service = UserVerificationService(self.db)
+
+            user = user_verification_service.verify_admin(
+                user_id=payload.user_id,
+                access_token=payload.access_token,
+                device_id=payload.device_id,
+                device_uuid=payload.device_uuid,
+                password=payload.user_password
+            )
+
+            operator = self.db.query(MobileOperatorTable).filter(
+                MobileOperatorTable.operator_id == payload.operator_id
+            ).first()
+
+            if not operator:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Mobile operator not found"
+                )
+
+            operator.status = ActivityStatus.ACTIVE
+            operator.updated_at = Helpers.utc6dhaka()
+            self.db.commit()
+            self.db.refresh(operator)
+
+            return GlobalResponse(
+                success=True,
+                message="Operator activated successfully",
+                data={
+                    "operator_id": operator.operator_id,
+                    "status": operator.status.value
+                }
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)

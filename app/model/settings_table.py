@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Enum, JSON
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.enums.enums import KYCStatus
+from app.enums import KYCStatus
 from app.utils.helpers import utc6dhaka
 
 
@@ -24,10 +24,6 @@ class SettingsTable(Base):
 
     biometric_enabled = Column(Boolean, nullable=False, default=False)
     biometric_secret = Column(String, nullable=True)
-    
-    kyc_status = Column(Enum(KYCStatus), default=KYCStatus.PENDING)
-    kyc_verified_by = Column(String, nullable=True)  # admin_id / system
-    kyc_verified_at = Column(DateTime(timezone=True), nullable=True)
 
     # Account Deactived
     account_locked = Column(Boolean, default=False)

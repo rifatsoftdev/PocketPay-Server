@@ -1,17 +1,8 @@
-from enum import Enum
-
-
-
-# User Status
-class UserStatus(str, Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    BLOCKED = "blocked"
-    PENDING = "pending"
+from enum import Enum as PyEnum
 
 
 # User Gender
-class Gender(str, Enum):
+class Gender(str, PyEnum):
     MALE = "male"
     FEMALE = "female"
     OTHER = "other"
@@ -19,6 +10,15 @@ class Gender(str, Enum):
 
 
 # Uaer type
-class UserType(str, Enum):
+class UserType(str, PyEnum):
     NORMAL = "normal"
     AGENT = "agent"
+
+
+class KYCStatus(str, PyEnum):
+    VERIFIED = "verified"
+    PENDING = "pending"
+    REJECTED = "rejected"
+    FAILED = "failed"
+    DISABLED = "disable"
+    REQUIRED = "required"

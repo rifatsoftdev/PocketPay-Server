@@ -8,8 +8,12 @@ from app.utils.helpers import utc6dhaka
 class AdminSessionTable(Base):
     __tablename__ = "admin_sessions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    admin_id = Column(String, ForeignKey("admin_list.admin_id"), index=True)
+    admin_id = Column(
+        String,
+        ForeignKey("admin_list.admin_id"),
+        primary_key=True,
+        index=True
+    )
 
     session_id = Column(String, unique=True, index=True)
 
@@ -25,15 +29,13 @@ class AdminSessionTable(Base):
 
     last_ip_address = Column(String, nullable=True)
 
-    is_used = Column(Boolean, default=True)
-    # Backward compatibility for code expecting is_active
-    is_active = synonym("is_used")
+    is_login = Column(Boolean, default=False, nullable=False)
+    is_active = synonym("is_login")
     
     last_seen_at = Column(DateTime(timezone=True), default=utc6dhaka)
 
     login_at = Column(DateTime(timezone=True), default=utc6dhaka)
     logout_at = Column(DateTime(timezone=True), onupdate=utc6dhaka, nullable=True)
-
 
     # Relationship
     admin = relationship(

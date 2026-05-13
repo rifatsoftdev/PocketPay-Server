@@ -13,7 +13,7 @@ from app.enums.transactions_enum import TransactionType, TransactionStatus, Tran
 
 from app.utils.generators import Generators
 from app.utils.helpers import utc6dhaka
-from app.services.auth.user_verification import verify_user
+from app.services.auth.user_verification import UserVerificationService
 from app.services.dev.developer_services import DeveloperServices
 
 from app.core.database import get_db, SessionLocal

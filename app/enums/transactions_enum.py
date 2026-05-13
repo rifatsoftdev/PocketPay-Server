@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import Enum as PyEnum
 
 
-class TransactionType(str, Enum):
+class TransactionType(str, PyEnum):
     DEPOSIT = "deposit"
     WITHDRAW = "withdraw"
     SENDMONEY = "sendmoney"
@@ -13,7 +13,7 @@ class TransactionType(str, Enum):
     CASHBACK = "cashback"
 
 
-class TransactionStatus(str, Enum):
+class TransactionStatus(str, PyEnum):
     PENDING = "pending"
     SUCCESS = "success"
     FAILED = "failed"
@@ -21,7 +21,30 @@ class TransactionStatus(str, Enum):
     REFUNDED = "refunded"
 
 
-
-class TransactionDirection(str, Enum):
+class TransactionDirection(str, PyEnum):
     IN = "in"
     OUT = "out"
+
+
+class PaymentMethods(str, PyEnum):
+    WALLET = "wallet"
+    BKASH = "bkash"
+    NAGAD = "nagad"
+    UPAI = "upai"
+    ROCKET = "rocket"
+    BANK = "bank"
+
+
+class BillCategory(str, PyEnum):
+    INTERNET = "internet"
+    ELECTRICITY = "electricity"
+    WATER = "water"
+    GAS = "gas"
+    ECOMMERCE = "ecommerce"
+    RENT = "rent"
+    FOOD = "food"
+    TRAVEL = "travel"
+    MERCHANT = "merchant"
+    TV = "tv"
+    TELEPHONE = "telephone"
+    OTHER = "other"

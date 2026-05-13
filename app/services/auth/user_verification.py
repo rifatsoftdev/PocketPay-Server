@@ -7,8 +7,8 @@ from app.constants import AnsiColor, String
 from app.utils.hashing import Hashing
 from app.utils.token import Token
 
-from app.enums.enums import KYCStatus
-from app.model import *
+from app.enums import KYCStatus
+from app.model import UserTable, SettingsTable, SessionTable, AdminTable, AdminSessionTable
 
 
 
@@ -46,7 +46,6 @@ class UserVerificationService:
         #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=String.INVALID_TOKEN)
 
         return payload.get("user_id")
-
 
     def verify_user(
         self,
@@ -177,24 +176,70 @@ class UserVerificationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=String.SERVER_ERROR
             )
+        
+    def verify_admin(
+        self, 
+        user_id: str,
+        access_token: str,
+        device_id: str,
+        device_uuid: str,
+        password: str
+    ) -> AdminTable:
+        try:
+            db_session = self.db
 
+            if db_session is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=String.SERVER_ERROR
+                )
 
-def verify_user(
-    db: Session,
-    user_id: str,
-    access_token: str,
-    android_id: str = None,
-    android_uuid: str = None,
-    device_id: str = None,
-    device_uuid: str = None,
-    password: str = None,
-    advance_check: bool = False,
-) -> UserTable:
-    return UserVerificationService(db).verify_user(
-        user_id=user_id,
-        access_token=access_token,
-        device_id=device_id or android_id,
-        device_uuid=device_uuid or android_uuid,
-        password=password,
-        advance_check=advance_check,
-    )
+            # fetch admin
+            admin = db_session.query(AdminTable).filter(
+                AdminTable.admin_id == user_id
+            ).first()
+
+            if not admin:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.ADMIN_NOT_FOUND
+                )
+
+            # verify password
+            if not Hashing.verify_password(password, admin.password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.INVALID_PASSWORD
+                )
+
+            # fetch session
+            session = db_session.query(AdminSessionTable).filter(
+                AdminSessionTable.admin_id == user_id,
+                AdminSessionTable.device_id == device_id,
+                AdminSessionTable.device_uuid == device_uuid,
+                AdminSessionTable.is_login == True
+            ).first()
+
+            if not session:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.SESSION_NOT_FOUND
+                )
+            
+            if not session.is_login:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.ADMIN_NOT_LOGIN
+                )
+
+            return admin
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            # print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=String.SERVER_ERROR
+            )

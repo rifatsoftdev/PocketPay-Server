@@ -46,10 +46,18 @@ class NewOperatorRequest(BaseModel):
 class OperatorDeactivateRequest(BaseModel):
     user_id: str
     access_token: str
-    android_id: str
-    android_uuid: str
+    device_id: str
+    device_uuid: str
     user_password: str
 
     operator_id: str
     
     
+class OperatorActivateRequest(BaseModel):
+    user_id: str
+    access_token: str
+    device_id: str
+    device_uuid: str
+    user_password: str
+
+    operator_id: str

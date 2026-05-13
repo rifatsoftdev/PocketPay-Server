@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, Foreign
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.enums.enums import BillCategory, ActivityStatus
+from app.enums import BillCategory, ActivityStatus
 from app.utils.helpers import utc6dhaka
 
 
@@ -12,7 +12,14 @@ from app.utils.helpers import utc6dhaka
 class BankTable(Base):
     __tablename__ = "bank_list"
 
-    bank_id = Column(String, primary_key=True)
+    id = Column(Integer, autoincrement=True, index=True)
+    
+    bank_id = Column(
+        String,
+        primary_key=True,
+        unique=True,
+        nullable=False
+    )
 
     bank_logo = Column(String, nullable=True)
     bank_name = Column(String, nullable=False)

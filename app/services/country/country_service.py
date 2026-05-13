@@ -55,7 +55,7 @@ class CountryService:
 
             session_query = self.db.query(AdminSessionTable).filter(
                 AdminSessionTable.admin_id == admin_id,
-                AdminSessionTable.is_active == True
+                AdminSessionTable.is_login == True
             )
 
             device_id = getattr(payload, "device_id", None) or getattr(payload, "android_id", None)

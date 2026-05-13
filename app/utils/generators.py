@@ -20,6 +20,7 @@ class Generators:
         uid = uuid.uuid4().hex.upper()
 
         prefixes = {
+            "admin": "ADM",
             "user": "USR",
             "bank": "BNK",
             "organization": "ORG",

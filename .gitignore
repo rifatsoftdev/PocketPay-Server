@@ -60,3 +60,4 @@ htmlcov/
 
 
 app/config/
+prod-ca-2021.crt

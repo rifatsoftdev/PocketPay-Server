@@ -121,7 +121,7 @@ PocketPay-Server/
 5. Start the development server:
 
    ```bash
-   python run.py
+   python3.10 run.py
    ```
 
    The local runner binds to your machine's network IP on port `8000`. You can also run Uvicorn directly:
@@ -135,7 +135,6 @@ PocketPay-Server/
 After starting the server, open:
 
 - Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
 - Admin login: `http://localhost:8000/admin/login`
 
 ## Main API Routes
@@ -247,19 +246,6 @@ Tables are created automatically when the application imports the database modul
 - Use HTTPS in production.
 - Rotate `SECRET_KEY` and provider credentials if they are ever exposed.
 
-## Development
-
-Run the application locally:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-Format Python files:
-
-```bash
-black app admin
-```
 
 Tests are not fully configured yet. Add project tests under `test/` and run them with your preferred test runner.
 
@@ -269,7 +255,6 @@ Tests are not fully configured yet. Add project tests under `test/` and run them
 - Use a production ASGI setup such as Uvicorn behind Gunicorn or a process manager
 - Replace SQLite with PostgreSQL, MySQL, or another production database
 - Configure CORS for trusted domains only
-- Enable HTTPS
 - Configure email, Cloudinary, Google OAuth, and Firebase service account credentials
 - Add monitoring, logging, backups, and database migrations
 

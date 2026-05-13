@@ -4,7 +4,7 @@ from fastapi import BackgroundTasks
 from decimal import Decimal
 
 from app.enums.transactions_enum import TransactionType, TransactionDirection, TransactionStatus
-from app.enums.enums import *
+from app.enums import PaymentMethods
 
 from app.utils.generators import Generators
 from app.utils.notification_manager import NotificationManager

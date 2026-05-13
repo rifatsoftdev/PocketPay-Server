@@ -132,7 +132,7 @@ class SessionService:
                 SessionTable.user_id == user_id,
                 SessionTable.is_login == True
             ).update({
-                "is_active": False,
+                "is_login": False,
                 "logout_at": datetime.utcnow()
             })
 

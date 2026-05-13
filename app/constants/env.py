@@ -5,6 +5,10 @@ dotenv.load_dotenv()
 
 
 class ENV:
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    
     # Environment variables for email configuration
     EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
@@ -47,6 +51,16 @@ class ENV:
     SALT = os.getenv("SALT")
 
     SERVICE_ACCOUNT_PATH = os.getenv("SERVICE_ACCOUNT_PATH")
+
+    # Default admin
+    ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+    ADMIN_NAME = os.getenv("ADMIN_NAME")
+
+    # Default user
+    DEFAULT_USER_EMAIL = os.getenv("DEFAULT_USER_EMAIL")
+    DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD")
+    DEFAULT_USER_NAME = os.getenv("DEFAULT_USER_NAME")
 
 
 

@@ -11,5 +11,5 @@ from app.services.country.country_service import CountryService
 from app.services.dev.developer_services import DeveloperServices
 from app.services.history.history_services import HistoryServices
 
-
+from app.services.offer.offer_services import OfferServices
 

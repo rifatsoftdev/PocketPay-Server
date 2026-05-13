@@ -84,12 +84,15 @@
 
     async function fetchCountries() {
         const tbody = document.getElementById("countryTableBody");
+
         try {
             const response = await fetch("/country/counties", {
                 method: "GET",
                 headers: { ...Auth.getAuthHeader() }
             });
+            
             const result = await response.json();
+
             if (!response.ok) throw new Error(result.detail || "Failed to fetch");
 
             allCountries = result.data.countries || [];
@@ -99,21 +102,21 @@
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">No countries found.</td></tr>';
                 return;
             }
-
+            
             allCountries.forEach(country => {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td title="${country.counrty_id}">${country.counrty_id.substring(0, 8)}...</td>
+                    <td title="${country.country_code}">${country.country_id.substring(0, 8)}...</td>
                     <td style="font-size: 20px;">${country.flag_emoji}</td>
-                    <td><strong>${country.counrty_name}</strong></td>
-                    <td>${country.counrty_code}</td>
+                    <td><strong>${country.country_name}</strong></td>
+                    <td>${country.country_code}</td>
                     <td>${country.currency} (${country.currency_symbol})</td>
                     <td>
                         <div class="actions">
-                            <button class="action-btn" onclick="editCountry('${country.counrty_id}')" title="Edit">
+                            <button class="action-btn" onclick="editCountry('${country.country_id}')" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="action-btn danger" onclick="disableCountry('${country.counrty_id}')" title="Disable">
+                            <button class="action-btn danger" onclick="disableCountry('${country.country_id}')" title="Disable">
                                 <i class="fas fa-ban"></i>
                             </button>
                         </div>

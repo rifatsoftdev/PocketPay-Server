@@ -66,7 +66,12 @@ class GoogleOauth(TokenGenerators):
             if (not email_address or not email_verified):
                 raise HTTPException(status_code=404, detail=String.EMAIL_OR_PHONE_REQUIRED)
             
-            registrationService = RegistrationService(self.db, self.background_tasks)
+            registrationService = RegistrationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
 
             existing_user: UserTable = registrationService.check_user_already_exists(
                 email=email_address

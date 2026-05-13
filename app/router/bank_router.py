@@ -12,7 +12,7 @@ from app.core.database import get_db
 from app.enums.transactions_enum import TransactionType, TransactionStatus, TransactionDirection
 from app.enums.notification_enum import NotificationType
 
-from app.enums.enums import PaymentMethods, ActivityStatus
+from app.enums import PaymentMethods, ActivityStatus
 
 from app.model.bank_table import BankTable
 from app.model.wallet_table import WalletTable
@@ -21,7 +21,7 @@ from app.model.transaction_table import TransactionTable
 from app.schema.bank_schema import BankListOut, PocketToBankRequest, BankToPocketRequest
 from app.schema.global_schema import GlobalResponse
 
-from app.services.auth.user_verification import verify_user
+from app.services.auth.user_verification import UserVerificationService
 from app.utils.generators import Generators
 from app.utils.notification_manager import NotificationManager
 from app.utils.helpers import utc6dhaka

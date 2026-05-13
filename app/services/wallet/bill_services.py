@@ -70,8 +70,8 @@ class BillServices(WalletService):
             offset = (page - 1) * limit
             providers = query.order_by(BillProviderTable.company_name).offset(offset).limit(limit).all()
 
-            if not providers:
-                raise HTTPException(status_code=404, detail="Bill categories not found")
+            # if not providers:
+            #     raise HTTPException(status_code=404, detail="Bill categories not found")
 
             providers_out = [BillProviderOut.from_orm(p) for p in providers]
 

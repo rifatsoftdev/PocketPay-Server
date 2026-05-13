@@ -1,10 +1,20 @@
 let operatorModal;
 
 document.addEventListener("DOMContentLoaded", () => {
-    loadOperators();
     // Initialize Bootstrap modal
-    operatorModal = new bootstrap.Modal(document.getElementById('operatorModal'));
+    operatorModal = getOperatorModal();
+    loadOperators();
 });
+
+function getOperatorModal() {
+    const modalElement = document.getElementById("operatorModal");
+    if (!modalElement || !window.bootstrap) {
+        return null;
+    }
+
+    operatorModal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    return operatorModal;
+}
 
 async function loadOperators() {
     try {
@@ -43,7 +53,7 @@ function showAddOperatorModal() {
     document.getElementById("operatorModalTitle").innerText = "Add New Operator";
     document.getElementById("operatorForm").reset();
     document.getElementById("operatorId").value = "";
-    operatorModal.show();
+    getOperatorModal()?.show();
 }
 
 async function editOperator(operatorId) {
@@ -61,7 +71,7 @@ async function editOperator(operatorId) {
             document.getElementById("opCountry").value = operator.country_code;
             document.getElementById("opLogo").value = operator.logo_url;
             document.getElementById("opApi").value = operator.operator_api || "";
-            operatorModal.show();
+            getOperatorModal()?.show();
         }
     } catch (error) {
         console.error("Error loading operator details:", error);
@@ -71,11 +81,14 @@ async function editOperator(operatorId) {
 
 async function saveOperator() {
     const opId = document.getElementById("operatorId").value;
+    const deviceId = localStorage.getItem("admin_device_id") || Auth.getDeviceId();
+    const deviceUuid = localStorage.getItem("admin_device_uuid") || Auth.getDeviceUuid();
+
     const payload = {
-        user_id: localStorage.getItem('admin_id') || "USRDCAFAC40FA144DE5ABAD95E9D79D066C",
-        access_token: localStorage.getItem('admin_access_token') || "",
-        android_id: "web_admin_panel",
-        android_uuid: "web_admin_uuid",
+        user_id: localStorage.getItem("admin_id") || "",
+        access_token: localStorage.getItem("admin_access_token") || Auth.getCookie("admin_access_token") || "",
+        android_id: deviceId,
+        android_uuid: deviceUuid,
         user_password: document.getElementById("adminPassword").value,
         operator_name: document.getElementById("opName").value,
         country_code: document.getElementById("opCountry").value,
@@ -102,7 +115,7 @@ async function saveOperator() {
         const result = await response.json();
         if (result.success) {
             showToast(opId ? "Operator updated!" : "Operator added!", "success");
-            operatorModal.hide();
+            getOperatorModal()?.hide();
             loadOperators();
         } else {
             showToast(result.message || "Operation failed", "error");
@@ -113,9 +126,23 @@ async function saveOperator() {
 }
 
 async function toggleOperatorStatus(operatorId, currentStatus) {
-    // নোট: আপনার বর্তমানে শুধুমাত্র /recharge/deactivate-operator আছে। 
-    // আপনাকে /recharge/activate-operator API-টি তৈরি করে নিতে হবে।
     const endpoint = currentStatus === 'active' ? "/recharge/deactivate-operator" : "/recharge/activate-operator";
+    const adminPassword = window.prompt("Enter admin password to continue");
+
+    if (!adminPassword) {
+        return showToast("Admin password is required", "error");
+    }
+
+    const payload = {
+        user_id: localStorage.getItem("admin_id") || "",
+        access_token: localStorage.getItem("admin_access_token") || Auth.getCookie("admin_access_token") || "",
+        device_id: localStorage.getItem("admin_device_id") || Auth.getDeviceId(),
+        device_uuid: localStorage.getItem("admin_device_uuid") || Auth.getDeviceUuid(),
+        user_password: adminPassword,
+        operator_id: operatorId
+    };
+
+    console.log("Toggling status with payload:", payload);
 
     try {
         const response = await fetch(endpoint, {
@@ -124,7 +151,7 @@ async function toggleOperatorStatus(operatorId, currentStatus) {
                 "Content-Type": "application/json",
                 ...Auth.getAuthHeader()
             },
-            body: JSON.stringify({ operator_id: operatorId })
+            body: JSON.stringify(payload)
         });
 
         if (response.status === 404) {

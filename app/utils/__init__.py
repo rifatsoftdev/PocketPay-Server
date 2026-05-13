@@ -1,4 +1,4 @@
-from app.utils.cloudinary_storage import CloudinaryStorage
+# from app.utils.cloudinary_storage import CloudinaryStorage
 from app.utils.encryption import Encryption
 from app.utils.generators import Generators
 from app.utils.hashing import Hashing

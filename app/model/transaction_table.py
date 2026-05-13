@@ -4,7 +4,7 @@ from sqlalchemy.orm import relationship
 
 from app.core.database import Base
 from app.enums.transactions_enum import TransactionType, TransactionStatus, TransactionDirection
-from app.enums.enums import PaymentMethods
+from app.enums import PaymentMethods
 from app.utils.helpers import utc6dhaka
 
 

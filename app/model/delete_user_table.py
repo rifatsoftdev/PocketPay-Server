@@ -8,10 +8,14 @@ from app.utils.helpers import utc6dhaka
 class DeletedUserTable(Base):
     __tablename__ = "deleted_user"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True, index=True)
 
     # Reference to original user (kept for audit)
-    user_id = Column(String, ForeignKey("user_list.user_id"), index=True)
+    user_id = Column(
+        String,
+        ForeignKey("user_list.user_id"),
+        index=True
+    )
 
     # Snapshot of key user data at delete-request time
     full_name = Column(String(30), nullable=False)

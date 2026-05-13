@@ -3,11 +3,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
 from app.constants import AnsiColor, ENV, String
-from app.utils import Generators, Hashing
+from app.utils import Generators, Hashing, Validator, Helpers
 from app.enums import KYCStatus, NotificationType
-from app.model import UserTable, SettingsTable, SessionTable, WalletTable, NotificationTable
-from app.schema.auth_schemas import RegisterRequest
-from app.schema.global_schema import GlobalResponse
+from app.model import UserTable, SettingsTable, SessionTable, WalletTable, NotificationTable, CountryTable
+from app.schema import RegisterRequest,GlobalResponse
 from app.services.auth.user_repository import UserRepository
 
 from app.utils.reward_service import RewardService
@@ -34,12 +33,25 @@ class RegistrationService(UserRepository):
         email_address: str,
         phone_number: str,
         country_code: str,
+        country_iso: str,
         user_password: str,
         profile_image_url: str,
         device_id: str,
         device_uuid: str,
         ip: str
-    ) -> UserTable:
+    ) -> UserTable | None:
+        if (not Validator.valid_email(email_address)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=String.INVALID_EMAIL_ADDRESS
+            )
+        
+        if (phone_number and not Validator.validate_phone(country_code+phone_number, country_iso)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=String.INVALID_PHONE_NUMBER
+            )
+
         user_id = Generators.generate_id("user")
 
         new_user = UserTable(
@@ -72,9 +84,7 @@ class RegistrationService(UserRepository):
             allow_notifications=True,
             dark_mode=False,
             language="en",
-            account_locked=False,
-            kyc_status=KYCStatus.PENDING,
-            kyc_verified_at=None
+            account_locked=False
         )
         self.db.add(settings)
         self.db.flush()
@@ -101,6 +111,7 @@ class RegistrationService(UserRepository):
         device_id: str,
         device_uuid: str,
         ip: str,
+        country_iso: str,
         background_tasks: BackgroundTasks,
         phone_number: str = None,
         country_code: str = None,
@@ -124,6 +135,7 @@ class RegistrationService(UserRepository):
                 email_address=email_address,
                 phone_number=phone_number,
                 country_code=country_code,
+                country_iso=country_iso,
                 user_password=user_password,
                 profile_image_url=profile_image_url,
                 device_id=device_id,
@@ -186,13 +198,19 @@ class RegistrationService(UserRepository):
     ) -> GlobalResponse:
         """Register a user and apply referral/welcome rewards."""
         try:
+            Helpers.print_payload(payload)
             ip: str = self.request.client.host
+
+            country = self.db.query(CountryTable).filter(
+                CountryTable.country_code == payload.country_code
+            ).first()
 
             created_user = self.new_user(
                 full_name=payload.full_name,
                 email_address=payload.email_address,
                 phone_number=payload.phone_number,
                 country_code=payload.country_code,
+                country_iso=country.country_iso,
                 user_password=payload.user_password,
                 profile_image_url=String.DEMO_PROFILE_IMAGE_URL,
                 device_id=payload.device_id,

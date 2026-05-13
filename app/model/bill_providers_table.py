@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, Foreign
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.enums.enums import BillCategory, ActivityStatus
+from app.enums import BillCategory, ActivityStatus
 from app.utils.helpers import utc6dhaka
 
 
@@ -12,7 +12,15 @@ from app.utils.helpers import utc6dhaka
 class BillProviderTable(Base):
     __tablename__ = "bill_providers"
 
-    company_id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, autoincrement=True, index=True)
+    
+    company_id = Column(
+        String,
+        primary_key=True,
+        unique=True,
+        nullable=False
+    )
+    
     category = Column(Enum(BillCategory, native_enum=False), nullable=False)
     
     company_logo = Column(String, nullable=True)

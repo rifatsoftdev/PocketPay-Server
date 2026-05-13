@@ -116,8 +116,14 @@ ROLE_PERMISSIONS = {
 class AdminTable(Base):
     __tablename__ = "admin_list"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    admin_id = Column(String, unique=True, index=True, nullable=False)
+    id = Column(Integer, autoincrement=True, index=True)
+
+    admin_id = Column(
+        String,
+        primary_key=True,
+        unique=True,
+        nullable=False
+    )
     
     email = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)

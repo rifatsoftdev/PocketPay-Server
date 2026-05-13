@@ -1,5 +1,5 @@
 import os, pytz
-from fastapi import APIRouter, HTTPException, Depends, Request, Query
+from fastapi import APIRouter, HTTPException, Depends, Request, Query, BackgroundTasks, Header
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
 from sqlalchemy import or_, and_, func, desc
@@ -10,17 +10,14 @@ from decimal import Decimal
 from app.core.database import get_db
 
 from app.model.admin_table import AdminTable, AdminRole, ROLE_PERMISSIONS, AdminPermissions
-from app.model.admin_session_table import AdminSessionTable
-from app.model.user_table import UserTable
-from app.model.wallet_table import WalletTable
-from app.model.transaction_table import TransactionTable
-from app.model.settings_table import SettingsTable
 
-from app.enums.transactions_enum import TransactionStatus
-from app.enums.user_enum import UserStatus
+from app.utils import Generators
+from app.constants import AnsiColor
+from app.model import AdminSessionTable, UserTable, WalletTable, TransactionTable, SettingsTable
+from app.enums import TransactionStatus, ActivityStatus
+from app.schema import GlobalResponse
 
 from admin.schema.admin_schema import *
-from app.schema.global_schema import GlobalResponse
 
 from app.dependencies.admin_auth import (
     get_current_admin,
@@ -29,9 +26,8 @@ from app.dependencies.admin_auth import (
     require_moderator_or_higher
 )
 
-from app.utils.generators import Generators
-from app.constants.colors import AnsiColor
-
+from app.services.admin.admin_services import AdminManagementServices
+from app.services.admin.access_services import AdminAccessServices
 
 
 
@@ -43,125 +39,22 @@ today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, mic
 
 
 # ==============================================================================
-# ==============================================================================
-
-
-
-# ==============================================================================
-"""
-Get dashboard statistics (all admin roles)
-
-request example
-get /dashboard/stats
-
-response example
-{
-    "success": true,
-    "message": "Dashboard statistics retrieved successfully",
-    "data": {
-        "total_users": 1000,
-        "active_users": 800,
-        "total_transactions": 5000,
-        "total_transaction_amount": 500000.0,
-        "total_wallets_balance": 1000000.0,
-        "new_users_today": 10,
-        "transactions_today": 50,
-        "amount_today": 5000.0
-    }
-}
-"""
-# ==============================================================================
 
 @admin_access_router.get("/dashboard/stats", response_model=GlobalResponse)
 async def get_dashboard_stats(
-    current_admin=Depends(get_current_admin),
-    db: Session = Depends(get_db)):
-    try:
-        # Basic counts
-        total_users = db.query(UserTable).count()
-        active_users = db.query(SettingsTable).filter(
-            SettingsTable.account_locked == False
-        ).count()
-        deactive_user = total_users - active_users
-        # Today's stats
-        new_users_today = db.query(UserTable).filter(
-            UserTable.created_at >= today_start
-        ).count()
-        
-        # Transaction stats
-        total_transactions = db.query(TransactionTable).count()
-        total_tx_amount = db.query(func.sum(TransactionTable.amount)).scalar() or 0
-        total_profite = db.query(func.sum(TransactionTable.service_charge)).scalar() or 0
-        transactions_today = db.query(TransactionTable).filter(
-            TransactionTable.created_at >= today_start
-        ).count()
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    adminAccessServices = AdminAccessServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
 
-        status_counts = {
-            "pending": db.query(TransactionTable).filter(TransactionTable.status == TransactionStatus.PENDING.value).count(),
-            "success": db.query(TransactionTable).filter(TransactionTable.status == TransactionStatus.SUCCESS.value).count(),
-            "failed": db.query(TransactionTable).filter(TransactionTable.status == TransactionStatus.FAILED.value).count(),
-            "cancelled": db.query(TransactionTable).filter(TransactionTable.status == TransactionStatus.CANCELLED.value).count(),
-            "refunded": db.query(TransactionTable).filter(TransactionTable.status == TransactionStatus.REFUNDED.value).count(),
-        }
-
-
-        # Wallet balance
-        total_wallets_balance = db.query(func.sum(WalletTable.balance)).scalar() or 0
-        
-        amount_today = db.query(func.sum(TransactionTable.amount)).filter(
-            TransactionTable.created_at >= today_start
-        ).scalar() or 0
-
-        # Recent activity
-        recent_transactions = db.query(TransactionTable).order_by(desc(TransactionTable.created_at)).limit(5).all()
-        recent_users = db.query(UserTable).order_by(desc(UserTable.created_at)).limit(5).all()
-        
-        # print(f"{total_users} {active_users} {total_transactions} {total_tx_amount} {total_wallets_balance} {new_users_today} {transactions_today} {amount_today}")
-        
-        return GlobalResponse(
-            success=True,
-            message="Dashboard statistics retrieved successfully",
-            data={
-                "total_users": total_users,
-                "active_users": active_users,
-                "deactive_user": deactive_user,
-                "new_users_today": new_users_today,
-                "total_profite": float(total_profite),
-                "total_transactions": total_transactions,
-                "total_transaction_amount": float(total_tx_amount),
-                "total_wallets_balance": float(total_wallets_balance),
-                "transactions_today": transactions_today,
-                "amount_today": float(amount_today),
-                "status_counts": status_counts,
-                "recent_transactions": [
-                    {
-                        "transaction_id": tx.transaction_id,
-                        "transaction_type": str(tx.transaction_type),
-                        "amount": float(tx.amount),
-                        "currency": tx.currency,
-                        "status": str(tx.status),
-                        "created_at": tx.created_at
-                    } for tx in recent_transactions
-                ],
-                "recent_users": [
-                    {
-                        "user_id": user.user_id,
-                        "full_name": user.full_name,
-                        "email": user.email_address,
-                        "phone": user.phone_number,
-                        "created_at": user.created_at
-                    } for user in recent_users
-                ]
-            }
-        )
-        
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
+    return adminAccessServices.get_dashboard_stats()
 
 
 

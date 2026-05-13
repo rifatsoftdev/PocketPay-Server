@@ -6,9 +6,9 @@ from typing import Any, Dict, Optional
 
 # Country Out
 class CountryOut(BaseModel):
-    counrty_id: str
-    counrty_name: str
-    counrty_code: str
+    country_id: str
+    country_name: str
+    country_code: str
     flag_emoji: str
     currency: str
     currency_symbol: str
@@ -23,8 +23,9 @@ class NewCountryRequest(BaseModel):
     device_id: str
     device_uuid: str
 
-    counrty_name: str
-    counrty_code: str
+    country_id: str
+    country_name: str
+    country_code: str
     flag_emoji: str
     currency: str
     currency_symbol: str

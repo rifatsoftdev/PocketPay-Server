@@ -3,7 +3,7 @@ from sqlalchemy import Column, Integer, String, JSON, DateTime, Boolean, Foreign
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.enums.enums import ActivityStatus
+from app.enums import ActivityStatus
 from app.utils.helpers import utc6dhaka
 
 

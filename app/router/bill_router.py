@@ -41,8 +41,15 @@ async def get_bill_providers(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     authorization: str = Header(None),
-    db: Session = Depends(get_db)):
-    bill_service = BillServices(db=db, background_tasks=None, request=None, authorization=authorization)
+    db: Session = Depends(get_db)
+):
+    bill_service = BillServices(
+        db=db,
+        background_tasks=None,
+        request=None,
+        authorization=authorization
+    )
+    
     return bill_service.get_bill_providers(
         category=category,
         status=status,

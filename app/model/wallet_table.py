@@ -11,9 +11,15 @@ from app.utils.helpers import utc6dhaka
 class WalletTable(Base):
     __tablename__ = "user_wallet"
     
-    user_id = Column(String, ForeignKey("user_list.user_id"), primary_key=True)
+    user_id = Column(
+        String,
+        ForeignKey("user_list.user_id"),
+        primary_key=True,
+        nullable=False,
+        unique=True
+    )
 
-    currency = Column(String(3), default="BDT")
+    currency = Column(String(3), default="BDT", nullable=False, unique=False)
     balance = Column(Numeric(18, 2), default=0)
 
     total_debits = Column(Numeric(18, 2), default=0)
@@ -21,5 +27,10 @@ class WalletTable(Base):
 
     last_updated = Column(DateTime(timezone=True), default=utc6dhaka, onupdate=utc6dhaka)
 
-    # relationship
-    user = relationship("UserTable", back_populates="wallet", cascade="all, delete-orphan", single_parent=True)
+    # Relationship with UserTable for one-to-one mapping between user and wallet
+    user = relationship(
+        "UserTable",
+        back_populates="wallet",
+        cascade="all, delete-orphan",
+        single_parent=True
+    )

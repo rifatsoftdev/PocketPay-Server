@@ -89,7 +89,7 @@ class AdminAuth:
             # Verify a still-active session matches this exact access token.
             sessions = db.query(AdminSessionTable).filter(
                 AdminSessionTable.admin_id == admin_id,
-                AdminSessionTable.is_active == True,
+                AdminSessionTable.is_login == True,
                 AdminSessionTable.access_token_hash.isnot(None)
             ).all()
             

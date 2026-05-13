@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, Enum
-
+from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, DateTime, JSON, Enum
+from sqlalchemy.orm import relationship
 from app.core.database import Base
-from app.enums.enums import ActivityStatus
+from app.enums import ActivityStatus
 from app.utils.helpers import utc6dhaka
 
 
@@ -9,12 +9,33 @@ from app.utils.helpers import utc6dhaka
 class CountryTable(Base):
     __tablename__ = "country_list"
 
-    counrty_id = Column(String, primary_key=True, nullable=False)
+    id = Column(Integer, autoincrement=True, index=True)
+    
+    country_id = Column(
+        String,
+        primary_key=True,
+        nullable=False,
+        unique=True
+    )
 
-    counrty_name = Column(String, unique=True, nullable=False)
-    counrty_code = Column(String, nullable=False)  # country dialing code, e.g., +880
+    country_name = Column(
+        String,
+        unique=True,
+        nullable=False
+    )
+
+    # foreign key to user table for country code relationship
+    country_code = Column(
+        String(4),
+        unique=True,
+        nullable=False
+    )
+    country_iso = Column(String(3), unique=True, nullable=False)
+    
     flag_emoji = Column(String, nullable=False)
+
     currency = Column(String, nullable=False)
+
     currency_symbol = Column(String, nullable=False)
     status = Column(Enum(ActivityStatus), nullable=False, default=ActivityStatus.PENDING)
 
@@ -23,4 +44,8 @@ class CountryTable(Base):
     created_at = Column(DateTime(timezone=True), default=utc6dhaka)
     updated_at = Column(DateTime(timezone=True), onupdate=utc6dhaka)
 
-
+    # Relationship with UserTable
+    users = relationship(
+        "UserTable",
+        back_populates="country"
+    )

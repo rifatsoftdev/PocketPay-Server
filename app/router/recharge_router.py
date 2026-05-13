@@ -5,7 +5,7 @@ from app.core.database import get_db
 
 from app.enums.notification_enum import NotificationType
 
-from app.schema.recharge_schemas import OperatorOut, MobileRechargeRequest, NewOperatorRequest, OperatorDeactivateRequest
+from app.schema.recharge_schemas import OperatorOut, MobileRechargeRequest, NewOperatorRequest, OperatorDeactivateRequest, OperatorActivateRequest
 from app.schema.global_schema import GlobalResponse
 
 from app.utils.generators import Generators
@@ -14,12 +14,8 @@ from app.utils.notification_manager import NotificationManager
 from app.services import RechargeServices
 from app.services.wallet.wallet_service import WalletService
 
-from app.enums import ActivityStatus, TransactionType, TransactionStatus, TransactionDirection
-
-from app.model.wallet_table import WalletTable
-from app.model.transaction_table import TransactionTable
-from app.model.mobile_operator_table import MobileOperatorTable
-from app.enums.enums import PaymentMethods
+from app.enums import ActivityStatus, TransactionType, TransactionStatus, TransactionDirection, PaymentMethods
+from app.model import WalletTable, TransactionTable, MobileOperatorTable
 
 
 
@@ -120,6 +116,24 @@ async def deactivate_operator(
 
 
 
+
+@recharge_router.post("/activate-operator")
+async def activate_operator(
+    payload: OperatorActivateRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    
+    rechargeServices = RechargeServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return rechargeServices.activate_operator(payload=payload)
 
 
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Boolean, Enum
+from sqlalchemy import Column, ForeignKey, String, DateTime, Boolean, Enum
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -16,7 +16,12 @@ class UserTable(Base):
     full_name = Column(String(30), nullable=False)
     email_address = Column(String(30), unique=True, index=True, nullable=False)
 
-    country_code = Column(String(4), nullable=True)
+    country_code = Column(
+        String(4),
+        ForeignKey("country_list.country_code"),
+        nullable=False
+    )
+    
     phone_number = Column(String(14), unique=True, index=True, nullable=True)
     
     password_hash = Column(String, nullable=True)
@@ -33,15 +38,21 @@ class UserTable(Base):
     created_at = Column(DateTime(timezone=True), default=utc6dhaka)
     updated_at = Column(DateTime(timezone=True), onupdate=utc6dhaka)
 
+    # Country relationship for easy access to country information
+    country = relationship(
+        "CountryTable",
+        back_populates="users"
+    )
 
-    # Relationship
+    # Wallet relationship for one-to-one mapping between user and wallet
     wallet = relationship(
         "WalletTable",
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan"
     )
-
+    
+    # Settings relationship for one-to-one mapping between user and settings
     settings = relationship(
         "SettingsTable",
         back_populates="user",
@@ -49,21 +60,32 @@ class UserTable(Base):
         cascade="all, delete-orphan"
     )
 
+    # Transactions relationship for one-to-many mapping between user and transactions
     sent_transactions = relationship(
         "TransactionTable",
         foreign_keys="TransactionTable.sender_user_id",
         back_populates="sender"
     )
 
+    # Received transactions relationship for one-to-many mapping between user and transactions
     received_transactions = relationship(
         "TransactionTable",
         foreign_keys="TransactionTable.receiver_user_id",
         back_populates="receiver"
     )
 
+    # Notifications relationship for one-to-many mapping between user and notifications
     notifications = relationship(
         "NotificationTable",
         foreign_keys="NotificationTable.target_id",
         back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+    # KYC relationship for one-to-one mapping between user and kyc
+    user_kyc = relationship(
+        "KYCTable",
+        back_populates="user",
+        uselist=False,
         cascade="all, delete-orphan"
     )
