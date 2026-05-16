@@ -65,5 +65,6 @@ class Token:
                 algorithms=[self.ALGORITHM]
             )
             return payload
+        
         except JWTError:
             return None

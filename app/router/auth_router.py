@@ -11,7 +11,8 @@ from app.schema import (
     ChangePasswordRequest, CancelDeleteAccountRequest, LinkGoogleAccountRequest,
     DeleteAccountRequest, ResetPasswordRequest, LogoutRequest, TOTPSetupRequest,
     TOTPConfirmRequest, TOTPAuthDisableRequest, EmailTFASetupRequest,
-    EmailTFAConfirmRequest, EmailTFADisableRequest, AccessTokenRequest
+    EmailTFAConfirmRequest, EmailTFADisableRequest, AccessTokenRequest,
+    FinalSetupRequest
 )
 from app.services import (
     GoogleOauth, TFAServices,
@@ -199,6 +200,24 @@ async def register(
     )
 
     return registrationService.register(payload=payload)
+
+
+@auth_router.post("/final-setup", response_model=GlobalResponse)
+async def final_setup(
+    payload: FinalSetupRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+):
+    registrationService = RegistrationService(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return registrationService.final_setup(payload=payload)
 
 
 

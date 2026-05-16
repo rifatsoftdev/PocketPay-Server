@@ -47,7 +47,7 @@ async def admin_login():
 async def admin_dashboard(request: Request):
     # Check if admin is logged in via cookie or token
     access_token = request.cookies.get("admin_access_token")
-
+    
     if not access_token:
         # Redirect to login page if not authenticated
         return RedirectResponse("/admin/login")
@@ -193,6 +193,20 @@ async def admin_offers(request: Request):
     )
 
     return templates.TemplateResponse("offer_manage.html", {"request": request})
+
+
+@template_router.get("/admin/kyc-requests")
+async def admin_kyc_requests(request: Request):
+    access_token = request.cookies.get("admin_access_token")
+
+    if not access_token:
+        return RedirectResponse("/admin/login")
+
+    request.headers.__dict__["_list"].append(
+        (b"authorization", f"Bearer {access_token}".encode())
+    )
+
+    return templates.TemplateResponse("kyc_requests.html", {"request": request})
 
 
 @template_router.get("/admin/profile")

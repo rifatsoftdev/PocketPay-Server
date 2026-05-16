@@ -20,7 +20,16 @@
         }
     }
 
-    function toggleSidebar() { document.body.classList.toggle("sidebar-collapsed"); }
+    function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        if (!sidebar) return;
+
+        if (window.matchMedia("(max-width: 1024px)").matches) {
+            sidebar.classList.toggle("show");
+        } else {
+            sidebar.classList.toggle("collapsed");
+        }
+    }
     function toggleAdminDropdown() { document.getElementById("adminDropdown").classList.toggle("show"); }
     function logout() { Auth.logout(); }
 

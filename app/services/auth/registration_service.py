@@ -1,20 +1,23 @@
 from fastapi import HTTPException, BackgroundTasks, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
+from decimal import Decimal
+from google.oauth2 import id_token
+from google.auth.transport import requests
 
 from app.constants import AnsiColor, ENV, String
 from app.utils import Generators, Hashing, Validator, Helpers
-from app.enums import KYCStatus, NotificationType
+from app.enums import Gender, KYCStatus, NotificationType
 from app.model import UserTable, SettingsTable, SessionTable, WalletTable, NotificationTable, CountryTable
-from app.schema import RegisterRequest,GlobalResponse
-from app.services.auth.user_repository import UserRepository
+from app.schema import RegisterRequest, GlobalResponse, FinalSetupRequest
 
-from app.utils.reward_service import RewardService
+from app.services.auth.user_repository import UserRepository
 from app.utils.notification_manager import NotificationManager
 from app.utils.bg_task import send_welcome_email
+from app.services.wallet.wallet_service import WalletService
 
 
-class RegistrationService(UserRepository):
+class RegistrationService(UserRepository, WalletService):
     def __init__(
         self,
         db: Session,
@@ -38,8 +41,10 @@ class RegistrationService(UserRepository):
         profile_image_url: str,
         device_id: str,
         device_uuid: str,
-        ip: str
+        ip: str,
+        referral_account: str
     ) -> UserTable | None:
+        
         if (not Validator.valid_email(email_address)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -61,7 +66,8 @@ class RegistrationService(UserRepository):
             phone_number=phone_number,
             country_code=country_code,
             password_hash=Hashing.create_hash(user_password) if user_password else None,
-            profile_image_url=profile_image_url
+            profile_image_url=profile_image_url,
+            referral_account=referral_account
         )
         self.db.add(new_user)
         self.db.flush()
@@ -112,11 +118,11 @@ class RegistrationService(UserRepository):
         device_uuid: str,
         ip: str,
         country_iso: str,
-        background_tasks: BackgroundTasks,
         phone_number: str = None,
         country_code: str = None,
         user_password: str = None,
         profile_image_url: str = None,
+        referral_account: str = None
     )-> UserTable | None:
         """Create a new user."""
         try:
@@ -140,7 +146,8 @@ class RegistrationService(UserRepository):
                 profile_image_url=profile_image_url,
                 device_id=device_id,
                 device_uuid=device_uuid,
-                ip=ip
+                ip=ip,
+                referral_account=referral_account
             )
             
             # user Notification
@@ -154,13 +161,13 @@ class RegistrationService(UserRepository):
             self.db.flush()
 
             # sent welcome email
-            background_tasks.add_task(send_welcome_email, email_address)
+            self.background_tasks.add_task(send_welcome_email, email_address)
 
             # real time notification
             notifier = NotificationManager(self.db)
 
             notifier.send_user_notification(
-                background_tasks=background_tasks,
+                background_tasks=self.background_tasks,
                 user_id=created_user.user_id,
                 title="Welcome to PocketPay! 🔐",
                 short_body=f"Your account has been successfully set up. Your security is our priority—let’s get started.",
@@ -171,14 +178,6 @@ class RegistrationService(UserRepository):
                 sms=False,
                 email=False
             )
-
-            # db commit and refresh
-            self.db.commit()
-            self.db.refresh(created_user)
-            # db.refresh(wallet)
-            # db.refresh(settings)
-            # db.refresh(session)
-            self.db.refresh(new_notification)
 
             # return new user
             return created_user
@@ -191,14 +190,14 @@ class RegistrationService(UserRepository):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
+    
     def register(
         self,
         payload: RegisterRequest
     ) -> GlobalResponse:
         """Register a user and apply referral/welcome rewards."""
         try:
-            Helpers.print_payload(payload)
+            # Helpers.print_payload(payload)
             ip: str = self.request.client.host
 
             country = self.db.query(CountryTable).filter(
@@ -216,36 +215,37 @@ class RegistrationService(UserRepository):
                 device_id=payload.device_id,
                 device_uuid=payload.device_uuid,
                 ip=ip,
-                background_tasks=self.background_tasks
+                referral_account=payload.referral_account
             )
 
-            reward_service = RewardService()
             referral_user = None
 
             if payload.referral_account:
                 referral_user = self.db.query(UserTable).filter(
                     UserTable.email_address == payload.referral_account
                 ).first()
-
-                if referral_user:
-                    reward_service.send_reward(
-                        background_tasks=self.background_tasks,
-                        db=self.db,
+                
+                if (not referral_user):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Referral account not found. Please check the email address and try again."
+                    )
+                
+                if (referral_user.user_id != String.SYSTEM_USER_ID):
+                    self.send_reward(
                         user_id=referral_user.user_id,
                         title="Referral Reward",
                         body=f"Your referral {payload.email_address} was successfuly registered. You have rechived a reward of {ENV.USER_REFERRAL_REWARD} BD.",
                         amount=ENV.USER_REFERRAL_REWARD
                     )
 
-            reward_amount = (
+            reward_amount: Decimal = (
                 ENV.NEW_USER_REWARD_WITH_REFERRAL
                 if referral_user
                 else ENV.NEW_USER_REWARD_WITH_NO_REFERRAL
             )
-
-            reward_service.send_reward(
-                background_tasks=self.background_tasks,
-                db=self.db,
+            
+            self.send_reward(
                 user_id=created_user.user_id,
                 title="Welcome Reward",
                 body=f"Welcome to PocketPay! You have rechived a reward of {reward_amount} BD.",
@@ -262,9 +262,157 @@ class RegistrationService(UserRepository):
             )
 
         except HTTPException:
+            self.db.rollback()
             raise
 
         except Exception as e:
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+    def final_setup(self, payload: FinalSetupRequest):
+        """Only required on google signin or singup"""
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                payload.token_id,
+                requests.Request(),
+                audience=ENV.GOOGLE_CLIENT_ID
+            )
+
+            google_id = idinfo.get("sub")
+            email_address = idinfo.get("email")
+            email_verified = idinfo.get("email_verified")
+
+            if not google_id or not email_address or not email_verified:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=String.EMAIL_OR_PHONE_REQUIRED
+                )
+
+            user = self.db.query(UserTable).filter(
+                UserTable.email_address == email_address
+            ).first()
+
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.USER_NOT_FOUND
+                )
+
+            if user.link_google and user.link_google != google_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=String.USER_ALRADY_EXISTS
+                )
+
+            country = None
+            if payload.country_code:
+                country = self.db.query(CountryTable).filter(
+                    CountryTable.country_code == payload.country_code
+                ).first()
+
+                if not country:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Country not found"
+                    )
+                
+                user.country_code = payload.country_code
+
+            if payload.phone_number:
+                if not payload.country_code or not country:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Country code is required with phone number"
+                    )
+
+                if not Validator.validate_phone(
+                    payload.country_code + payload.phone_number,
+                    country.country_iso
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=String.INVALID_PHONE_NUMBER
+                    )
+
+                existing_phone_user = self.db.query(UserTable).filter(
+                    UserTable.phone_number == payload.phone_number,
+                    UserTable.country_code == payload.country_code,
+                    UserTable.user_id != user.user_id
+                ).first()
+
+                if existing_phone_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=String.USER_ALRADY_EXISTS
+                    )
+
+                user.phone_number = payload.phone_number
+                user.country_code = payload.country_code
+
+            if payload.user_gender:
+                try:
+                    user.user_gender = Gender(payload.user_gender)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid gender"
+                    )
+
+            if payload.date_of_birth:
+                user.date_of_birth = payload.date_of_birth
+
+            user.email_verified = True
+            user.link_google = google_id
+            user.updated_at = Helpers.utc6dhaka()
+
+            settings = self.db.query(SettingsTable).filter(
+                SettingsTable.user_id == user.user_id
+            ).first()
+
+            if settings and country:
+                settings.country = country.country_iso
+
+            session = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user.user_id,
+                SessionTable.device_id == payload.device_id,
+                SessionTable.device_uuid == payload.device_uuid
+            ).first()
+
+            if session:
+                session.last_ip_address = self.request.client.host
+                session.is_login = True
+                session.otp_verified = True
+                session.login_at = Helpers.utc6dhaka()
+
+            self.db.commit()
+            self.db.refresh(user)
+
+            return GlobalResponse(
+                success=True,
+                message="Final setup completed successfully",
+                data={
+                    "user_id": user.user_id,
+                    "email_address": user.email_address,
+                    "phone_number": user.phone_number,
+                    "country_code": user.country_code,
+                    "user_gender": user.user_gender.value if user.user_gender else None,
+                    "date_of_birth": user.date_of_birth,
+                    "email_verified": user.email_verified
+                }
+            )
+
+        except HTTPException:
+            self.db.rollback()
+            raise
+
+        except ValueError:
+            self.db.rollback()
+            raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+        

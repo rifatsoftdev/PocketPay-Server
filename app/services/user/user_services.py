@@ -374,3 +374,6 @@ class UserServices:
             print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
             
+
+
+

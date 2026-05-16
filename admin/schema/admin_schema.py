@@ -75,6 +75,7 @@ class AdminUserNotifyRequest(BaseModel):
 
 class AdminPasswordUpdateRequest(BaseModel):
     """Request schema for changing admin password (self or super_admin)"""
+    admin_id: str
     current_password: Optional[str] = None  # Required for self-change, not for super_admin
     new_password: str = Field(..., min_length=8, description="Minimum 8 characters")
 

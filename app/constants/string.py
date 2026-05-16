@@ -34,5 +34,6 @@ class String:
     PASSWORD_RESET_SUCCESSFUL = "Password Reset Successful"
     PASSWORD_NOT_SET = "Password Not Set"
     VERIFY_KYC_FIRST = "Verify KYC First"
+    SYSTEM_USER_ID = "PocketPay"
     
     

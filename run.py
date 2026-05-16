@@ -24,3 +24,6 @@ if __name__ == "__main__":
     ) 
 
 # uvicorn app.main:app --reload
+
+# docker build --no-cache -t pocketpay-server .
+# docker run -p 8000:8000 pocketpay-server

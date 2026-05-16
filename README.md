@@ -41,6 +41,10 @@ PocketPay-Server/
 |   `-- utils/             # Auth, hashing, notification, and helper utilities
 |-- static/                # Admin dashboard static files
 |-- templates/             # Admin dashboard HTML templates
+|-- Dockerfile             # Docker configuration
+|-- LICENSE                # License file
+|-- .env                   # Environment variables (not in git)
+|-- .gitignore             # Git ignore file
 |-- run.py                 # Local development runner
 |-- requirements.txt       # Python dependencies
 `-- README.md
@@ -54,7 +58,36 @@ PocketPay-Server/
 - `pip`
 - A virtual environment tool such as `venv`
 
+> Note: This project is designed for Python 3.10. If you want to avoid compatibility issues on your machine, using Docker is the recommended way to run the app. If Docker is not available, you can still run the project normally with Python 3.10 installed.
+
+### Quick Start with Setup Script
+
+The easiest way to set up PocketPay Server is using the automated setup script:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+The setup script will:
+- Create a `.env` file with all required configuration variables
+- Offer to setup with Docker (recommended) or manually with Python
+- For Docker: Build and run the application in a container
+- For Manual: Create a virtual environment, install dependencies, and guide you to run the app
+
+### Docker Setup (Recommended)
+
+If you prefer Docker without the setup script:
+
+```bash
+docker-compose up -d
+```
+
+This starts the PocketPay Server with all environment variables configured. The app will be available at `http://localhost:8000`.
+
 ### Installation
+
+#### Manual Installation (If not using setup script or Docker)
 
 1. Clone the repository:
 
@@ -63,28 +96,15 @@ PocketPay-Server/
    cd PocketPay-Server
    ```
 
-2. Create and activate a virtual environment:
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   ```
-
-   On Windows:
-
-   ```bash
-   venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Create a `.env` file in the project root and configure the required values:
+2. Create a `.env` file in the project root with the following configuration:
 
    ```env
+   # Database Configuration
+   DATABASE_URL=sqlite:///./pocketpay.db
+   SUPABASE_URL=your-supabase-url
+   SUPABASE_KEY=your-supabase-key
+
+   # Email Configuration (SMTP)
    EMAIL_ADDRESS=your-email@example.com
    EMAIL_PASSWORD=your-email-password
    SMTP_SERVER=smtp.gmail.com
@@ -92,43 +112,74 @@ PocketPay-Server/
    EMAIL_USE_TLS=True
    EMAIL_USE_SSL=False
 
+   # Google OAuth
    GOOGLE_CLIENT_ID=your-google-client-id
 
+   # JWT Authentication
    SECRET_KEY=change-this-secret-key
    ALGORITHM=HS256
    ACCESS_EXPIRE=30
    REFRESH_EXPIRE=10080
 
+   # OTP and Password Reset
    OTP_TOKEN_EXPIRE_MIN=5
    PASS_RST_TOKEN_EXPIRE_MIN=15
 
+   # User Rewards Configuration
    NEW_USER_REWARD_WITH_REFERRAL=0
    NEW_USER_REWARD_WITH_NO_REFERRAL=0
    USER_REFERRAL_REWARD=0
    SERVICE_CHARGE=0
 
+   # Application Settings
    VERSION=1.0.0
    DEBUG=True
 
+   # Cloudinary (Image Upload)
    CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
    CLOUDINARY_API_KEY=your-cloudinary-api-key
    CLOUDINARY_API_SECRET=your-cloudinary-api-secret
 
+   # Security
    SALT=change-this-salt
    SERVICE_ACCOUNT_PATH=path/to/firebase-service-account.json
+
+   # Default Admin Credentials
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=admin-password
+   ADMIN_NAME=Admin
+
+   # Default Test User Credentials
+   DEFAULT_USER_EMAIL=user@example.com
+   DEFAULT_USER_PASSWORD=user-password
+   DEFAULT_USER_NAME=User
+   ```
+
+3. Create a virtual environment:
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+4. Install dependencies:
+
+   ```bash
+   pip install -r requirements.txt
    ```
 
 5. Start the development server:
 
    ```bash
-   python3.10 run.py
+   python run.py
    ```
 
-   The local runner binds to your machine's network IP on port `8000`. You can also run Uvicorn directly:
+   Or use Uvicorn directly:
 
    ```bash
-   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
+
 
 ## API Documentation
 

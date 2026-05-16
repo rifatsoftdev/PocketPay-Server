@@ -9,6 +9,16 @@ class GoogleLoginRequest(BaseModel):
     device_id: str
     device_uuid: str
 
+class FinalSetupRequest(BaseModel):
+    token_id: str
+    device_id: str
+    device_uuid: str
+    
+    phone_number: Optional[str] = None
+    country_code: Optional[str] = None
+    user_gender: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    
 
 # Schemas for Login Request
 class LoginRequest(BaseModel):

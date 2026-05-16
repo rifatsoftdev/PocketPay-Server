@@ -1,5 +1,5 @@
 from app.schema.auth_schemas import (
-    LoginRequest, RegisterRequest, AccessTokenRequest,
+    LoginRequest, RegisterRequest, AccessTokenRequest, FinalSetupRequest,
     TOTPSetupRequest, TOTPConfirmRequest, TOTPAuthDisableRequest,
     EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest,
     GoogleLoginRequest, OTPRequest,
@@ -22,6 +22,6 @@ from app.schema.history_schema import *
 from app.schema.offer_schema import OfferCreateRequest, OfferUpdateRequest
 from app.schema.qr_schema import *
 from app.schema.recharge_schemas import *
-from app.schema.user_schemas import KYCRequest
+from app.schema.user_schemas import KYCRequest, KYCUpdateRequest
 from app.schema.wallet_schema import SendMoneyRequest
 

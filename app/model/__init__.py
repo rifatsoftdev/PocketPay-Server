@@ -1,5 +1,6 @@
 from app.model.admin_session_table import AdminSessionTable
 from app.model.admin_table import AdminTable
+from app.model.app_configurations_table import AppConfigTable
 from app.model.bank_table import BankTable
 from app.model.bill_providers_table import BillProviderTable
 from app.model.cloudinary_history_table import CloudinaryHistory

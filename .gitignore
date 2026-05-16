@@ -61,3 +61,6 @@ htmlcov/
 
 app/config/
 prod-ca-2021.crt
+data/pocketpay.json
+alembic/
+alembic.ini

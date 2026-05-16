@@ -1,26 +1,28 @@
 
 from datetime import timedelta
 
-from fastapi import BackgroundTasks, HTTPException, Request
+from fastapi import BackgroundTasks, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.constants import AnsiColor, String
+from app.constants import AnsiColor, String, ENV
 from app.enums import NotificationType
-from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable
-from app.schema import GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest, LogoutRequest, LogoutAllRequest
+from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, UserTable
+from app.schema import (
+    GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest,
+    LogoutRequest, LogoutAllRequest, FCMTokenRequest, AccessTokenRequest
+)
 from app.utils import Hashing, Helpers, Token
 
 from app.services.auth.user_verification import UserVerificationService
-from app.services.auth.token_service import TokenService
 from app.services.auth.otp_service import OTPService
 
 from app.services.auth.user_repository import UserRepository
-
 from app.utils.notification_manager import NotificationManager
+from app.services.auth.token_service import TokenGenerators
 
 
 
-class AccountServices(TokenService, OTPService, UserRepository):
+class AccountServices(OTPService, UserRepository, TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -56,9 +58,8 @@ class AccountServices(TokenService, OTPService, UserRepository):
             query: dict = dict(self.request.query_params),
             cookies: dict = self.request.cookies
             
-
             # user login on phone number
-            user = self.check_user_already_exists(
+            user: UserTable = self.check_user_already_exists(
                 email=email_address,
                 phone=phone_number,
                 country_code=country_code
@@ -66,31 +67,44 @@ class AccountServices(TokenService, OTPService, UserRepository):
             
             # user not found on database
             if not user:
-                raise HTTPException(status_code=404, detail=String.USER_NOT_FOUND)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.USER_NOT_FOUND
+                )
 
-            settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user.user_id).first()
+            settings: SettingsTable = user.settings
+
             if not settings:
-                raise HTTPException(status_code=404, detail=String.SETTINGS_NOT_FOUND)
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=String.SETTINGS_NOT_FOUND
+                )
 
             if settings.account_locked:
-                raise HTTPException(status_code=401, detail=String.ACCOUNT_LOCKED)
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=String.ACCOUNT_LOCKED
+                )
 
             if not user.password_hash:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail=String.PASSWORD_NOT_SET
                 )
 
             # check password
             if (not Hashing.verify_password(user_password, user.password_hash)):
-                raise HTTPException(status_code=401, detail=String.INVALID_PASSWORD)
-
-            token_service = Token()
+                raise HTTPException(
+                    status_code=401,
+                    detail=String.INVALID_PASSWORD
+                )
 
             access_token = None
             refresh_token = None
+
             is_2fa_required = bool(settings.two_factor_enabled)
             two_factor_methods = []
+
             if isinstance(settings.two_factor, dict):
                 if settings.two_factor.get("totp"):
                     two_factor_methods.append("totp")
@@ -104,8 +118,18 @@ class AccountServices(TokenService, OTPService, UserRepository):
                     "device_id": device_id,
                     "device_uuid": device_uuid
                 }
-                access_token = token_service.create_access_token(data=token_data)
-                refresh_token = token_service.create_refresh_token(data=token_data)
+
+                access_token = self._create_token(
+                    token_type="access",
+                    expire_min=ENV.ACCESS_EXPIRE,
+                    data=token_data
+                )
+
+                refresh_token = self._create_token(
+                    token_type="refresh",
+                    expire_min=ENV.REFRESH_EXPIRE,
+                    data=token_data
+                )
             
             # create a session
             session = SessionTable(
@@ -159,7 +183,7 @@ class AccountServices(TokenService, OTPService, UserRepository):
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "token_type": "bearer",
-                    "expires_in": token_service.ACCESS_EXPIRE * 60,
+                    "expires_in": ENV.ACCESS_EXPIRE,
                     "email_address": user.email_address,
                     "phone_number": f"{user.country_code or ''}{user.phone_number or ''}" or None
                 }
@@ -277,6 +301,130 @@ class AccountServices(TokenService, OTPService, UserRepository):
             raise
 
         except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+    def get_new_access_token(self, payload: AccessTokenRequest) -> GlobalResponse:
+        try:
+            # get data
+            refresh_token = payload.refresh_token
+            user_id = payload.user_id
+            android_id = payload.device_id
+            android_uuid = payload.device_uuid
+
+            session = self.db.query(SessionTable).filter(
+                SessionTable.device_id == android_id,
+                SessionTable.device_uuid == android_uuid
+            ).first()
+
+            if (not session):
+                raise HTTPException(status_code=404, detail=String.SESSION_NOT_FOUND)
+
+            if (not session.is_login or not session.otp_verified):
+                raise HTTPException(status_code=401, detail=String.USER_NOT_LOGIN)
+
+            payload = self._decode_token(refresh_token)
+
+            # check token if expired payload is Null
+            if payload == None:
+                raise HTTPException(status_code=401, detail="Refresh token expired")
+            
+            # check token type
+            if payload.get("type") != "refresh":
+                raise HTTPException(status_code=401, detail="Invalid token")
+
+            access_token = self._create_token(
+                expire_min=ENV.ACCESS_EXPIRE,
+                data={
+                    "user_id": payload.get("user_id"),
+                    "email_address": payload.get("email_address"),
+                    "android_id": payload.get("android_id"),
+                    "android_uuid": payload.get("android_uuid")
+                }
+            )
+
+            # update session
+            session = self.db.query(SessionTable).filter(SessionTable.user_id == payload.get("user_id")).first()
+
+            if session:
+                session.access_token_hash = Hashing.create_hash(access_token)
+                self.db.commit()
+                self.db.refresh(session)
+
+            return GlobalResponse(
+                success=True,
+                message="Access token refreshed successfully",
+                data={
+                    "access_token": access_token
+                }
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+    
+    def receive_fcm_token(self, payload: FCMTokenRequest) -> GlobalResponse:
+        try:
+            # print(f"FCM token received: {request}")
+
+            # get data
+            user_id: str = payload.user_id
+            access_token: str = payload.access_token
+            android_id: str = payload.device_id
+            android_uuid: str = payload.device_uuid
+            fcm_token: str = payload.fcm_token
+            
+            # verify user
+            user_verification_service = UserVerificationService(
+                db=self.db,
+                background_tasks=self.background_tasks,
+                request=self.request,
+                authorization=self.authorization
+            )
+
+            user = user_verification_service.verify_user(
+                user_id=user_id,
+                access_token=access_token,
+                device_id=android_id,
+                device_uuid=android_uuid
+            )
+
+            # find db
+            existing = self.db.query(SessionTable).filter(
+                SessionTable.user_id==user_id,
+                SessionTable.device_id==android_id,
+                SessionTable.device_uuid==android_uuid,
+                SessionTable.is_login==True
+            ).first()
+            
+            if existing:
+                existing.fcm_token = fcm_token
+                self.db.commit()
+                self.db.refresh(existing)
+            else:
+                session = SessionTable(
+                    user_id=user_id,
+                    fcm_token=fcm_token
+                )
+                self.db.add(session)
+                self.db.commit()
+                self.db.refresh(session)
+            
+            return GlobalResponse(
+                success=True,
+                message="FCM token received successfully",
+                data={}
+            )
+        
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
@@ -431,4 +579,6 @@ class AccountServices(TokenService, OTPService, UserRepository):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
 

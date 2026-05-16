@@ -5,14 +5,14 @@ from jose import JWTError
 from app.constants import AnsiColor, String
 
 from app.utils.hashing import Hashing
-from app.utils.token import Token
-
 from app.enums import KYCStatus
-from app.model import UserTable, SettingsTable, SessionTable, AdminTable, AdminSessionTable
+from app.model import UserTable, SettingsTable, SessionTable, AdminTable, AdminSessionTable, KYCTable
+
+from app.services.auth.token_service import TokenGenerators
 
 
 
-class UserVerificationService:
+class UserVerificationService(TokenGenerators):
     def __init__(
         self,
         db: Session = None,
@@ -24,11 +24,11 @@ class UserVerificationService:
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+        super().__init__(self.db)
 
-    def verify_access_token(self, access_token: str) -> str:
+    def verify_access_token(self, access_token: str, advanced: bool = False) -> str:
         # verify token
-        token_service = Token()
-        payload = token_service.decode_token(access_token)
+        payload = self._decode_token(access_token)
 
         if not payload:
             raise HTTPException(
@@ -45,7 +45,25 @@ class UserVerificationService:
         # if payload.get("user_id") != user_id:
         #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=String.INVALID_TOKEN)
 
-        return payload.get("user_id")
+        #print(payload.get("user_id"), payload.get("admin_id"))
+
+        return payload.get("user_id") or payload.get("admin_id")
+    
+    def verify_authorization(self, authorization: str, advanced: bool = False) -> str:
+        if not authorization:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing Authorization header"
+            )
+
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token format"
+            )
+        
+        # print(authorization.split(" ")[1])
+        return self.verify_access_token(authorization.split(" ")[1])
 
     def verify_user(
         self,
@@ -124,7 +142,11 @@ class UserVerificationService:
                     detail=String.ACCOUNT_LOCKED
                 )
 
-            if (advance_check and settings.kyc_status != KYCStatus.VERIFIED):
+            kyc = db_session.query(KYCTable).filter(
+                KYCTable.user_id == user_id
+            ).first()
+
+            if (advance_check and (not kyc or kyc.kyc_status != KYCStatus.VERIFIED)):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=String.VERIFY_KYC_FIRST
@@ -243,3 +265,5 @@ class UserVerificationService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=String.SERVER_ERROR
             )
+
+

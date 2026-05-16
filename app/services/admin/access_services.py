@@ -1,18 +1,22 @@
-from datetime import timedelta
 from fastapi import BackgroundTasks, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func, desc
+from datetime import timedelta
+from typing import Optional
+from decimal import Decimal
 from datetime import datetime, timezone, timedelta
 
 
 from app.constants import AnsiColor, String
-from app.enums import NotificationType, TransactionStatus
+from app.enums import NotificationType, TransactionStatus, KYCStatus
 from app.model import (
-    DeletedUserTable, NotificationTable, SessionTable, SettingsTable,
-    AdminTable, UserTable, TransactionTable, WalletTable
+    DeletedUserTable, NotificationTable, SettingsTable,
+    AdminTable, UserTable, TransactionTable, WalletTable, KYCTable
 )
-from app.schema import GlobalResponse, CancelDeleteAccountRequest
+from app.schema import GlobalResponse, KYCUpdateRequest
 from app.utils import Helpers, Generators, Hashing
+
+from admin.schema.admin_schema import *
 
 from app.model.admin_table import AdminRole
 from app.services.auth.user_verification import UserVerificationService
@@ -76,8 +80,12 @@ class AdminAccessServices(UserVerificationService):
             ).scalar() or 0
 
             # Recent activity
-            recent_transactions = self.db.query(TransactionTable).order_by(desc(TransactionTable.created_at)).limit(5).all()
-            recent_users = self.db.query(UserTable).order_by(desc(UserTable.created_at)).limit(5).all()
+            recent_transactions = self.db.query(TransactionTable).order_by(
+                desc(TransactionTable.created_at
+            )).limit(5).all()
+            recent_users = self.db.query(UserTable).order_by(desc(
+                UserTable.created_at
+            )).limit(5).all()
             
             # print(f"{total_users} {active_users} {total_transactions} {total_tx_amount} {total_wallets_balance} {new_users_today} {transactions_today} {amount_today}")
             
@@ -111,7 +119,7 @@ class AdminAccessServices(UserVerificationService):
                             "user_id": user.user_id,
                             "full_name": user.full_name,
                             "email": user.email_address,
-                            "phone": user.phone_number,
+                            "phone": user.country_code+user.phone_number,
                             "created_at": user.created_at
                         } for user in recent_users
                     ]
@@ -124,3 +132,562 @@ class AdminAccessServices(UserVerificationService):
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
+
+    def list_users(
+        self,
+        page: int,
+        limit: int,
+        search: Optional[str] = None,
+        kyc_status: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc"
+    ) -> GlobalResponse:
+        try:
+            # Build query with joins
+            query = self.db.query(UserTable).join(SettingsTable).join(WalletTable).outerjoin(KYCTable)
+            
+            # Apply filters
+            if search:
+                query = query.filter(
+                    or_(
+                        UserTable.full_name.ilike(f"%{search}%"),
+                        UserTable.email_address.ilike(f"%{search}%"),
+                        UserTable.phone_number.ilike(f"%{search}%"),
+                        UserTable.user_id.ilike(f"%{search}%")
+                    )
+                )
+            if kyc_status:
+                query = query.filter(KYCTable.kyc_status == kyc_status)
+                
+            if is_active is not None:
+                query = query.filter(SettingsTable.account_locked == (not is_active))
+            
+            # Get total count
+            total = query.count()
+            
+            # Apply sorting
+            if sort_by == "created_at":
+                sort_column = UserTable.created_at
+            elif sort_by == "full_name":
+                sort_column = UserTable.full_name
+            elif sort_by == "wallet_balance":
+                sort_column = WalletTable.balance
+            
+            if sort_order == "desc":
+                query = query.order_by(desc(sort_column))
+            else:
+                query = query.order_by(sort_column)
+            
+            # Apply pagination
+            offset = (page - 1) * limit
+            users = query.offset(offset).limit(limit).all()
+            
+            # Format response
+            user_list = []
+            for user in users:
+                wallet = self.db.query(WalletTable).filter(WalletTable.user_id == user.user_id).first()
+                settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user.user_id).first()
+                kyc = self.db.query(KYCTable).filter(KYCTable.user_id == user.user_id).first()
+
+                phone = (
+                    f"{user.country_code or ''}{user.phone_number}"
+                    if user.phone_number
+                    else None
+                )
+
+                user_list.append({
+                    "user_id": user.user_id,
+                    "full_name": user.full_name,
+                    "email": user.email_address,
+                    "phone": phone,
+                    "profile_image_url": user.profile_image_url,
+                    "phone_verified": user.phone_verified,
+                    "email_verified": user.email_verified,
+                    "kyc_status": kyc.kyc_status if kyc else "pending",
+                    "is_active": not settings.account_locked if settings else False,
+                    "wallet_balance": float(wallet.balance) if wallet else 0,
+                    "wallet_currency": wallet.currency if wallet else "BDT",
+                    "created_at": user.created_at
+                })
+            
+            return GlobalResponse(
+                success=True,
+                message="Users retrieved successfully",
+                data={"users": user_list},
+                pagination={
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "total_pages": (total + limit - 1) // limit
+                }
+            )
+            
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def list_transactions(
+        self,
+        page: int,
+        limit: int,
+        search: Optional[str] = None,
+        transaction_id: Optional[str] = None,
+        sender_id: Optional[str] = None,
+        receiver_id: Optional[str] = None,
+        transaction_type: Optional[str] = None,
+        status: Optional[str] = None,
+        created_from: Optional[datetime] = None,
+        created_to: Optional[datetime] = None,
+        min_amount: Optional[float] = None,
+        max_amount: Optional[float] = None,
+    ) -> GlobalResponse:
+        try:
+            query = self.db.query(TransactionTable)
+            
+            # Apply filters
+            if search:
+                query = query.filter(
+                    or_(
+                        TransactionTable.transaction_id.ilike(f"%{search}%"),
+                        TransactionTable.sender_user_id.ilike(f"%{search}%"),
+                        TransactionTable.receiver_user_id.ilike(f"%{search}%"),
+                        TransactionTable.reference.ilike(f"%{search}%"),
+                        TransactionTable.account_name.ilike(f"%{search}%")
+                    )
+                )
+            if transaction_id:
+                query = query.filter(TransactionTable.transaction_id == transaction_id)
+            if sender_id:
+                query = query.filter(TransactionTable.sender_user_id.ilike(f"%{sender_id}%"))
+            if receiver_id:
+                query = query.filter(TransactionTable.receiver_user_id.ilike(f"%{receiver_id}%"))
+            if transaction_type:
+                query = query.filter(TransactionTable.transaction_type == transaction_type)
+            if status:
+                query = query.filter(TransactionTable.status == status)
+            if created_from:
+                query = query.filter(TransactionTable.created_at >= created_from)
+            if created_to:
+                query = query.filter(TransactionTable.created_at <= created_to)
+            if min_amount is not None:
+                query = query.filter(TransactionTable.amount >= min_amount)
+            if max_amount is not None:
+                query = query.filter(TransactionTable.amount <= max_amount)
+            
+            # Get total count
+            total = query.count()
+            
+            # Apply pagination
+            offset = (page - 1) * limit
+            transactions = query.order_by(desc(TransactionTable.created_at)).offset(offset).limit(limit).all()
+            
+            # Format response
+            transaction_list = []
+            for tx in transactions:
+                transaction_list.append({
+                    "transaction_id": tx.transaction_id,
+                    "sender_user_id": tx.sender_user_id,
+                    "receiver_user_id": tx.receiver_user_id,
+                    "transaction_type": tx.transaction_type.value if tx.transaction_type else None,
+                    "amount": float(tx.amount),
+                    "currency": tx.currency,
+                    "status": tx.status.value if tx.status else None,
+                    "description": tx.reference or "",
+                    "created_at": tx.created_at.isoformat() if tx.created_at else None
+                })
+            
+            return GlobalResponse(
+                success=True,
+                message="Transactions retrieved successfully",
+                data={"transactions": transaction_list},
+                pagination={
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "total_pages": (total + limit - 1) // limit
+                }
+            )
+            
+        except HTTPException:
+            raise
+        
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def get_transaction_details(
+        self,
+        transaction_id: str
+    ) -> GlobalResponse:
+        try:
+            transaction = self.db.query(TransactionTable).filter(
+                TransactionTable.transaction_id == transaction_id
+            ).first()
+            
+            if not transaction:
+                raise HTTPException(status_code=404, detail="Transaction not found")
+            
+            return GlobalResponse(
+                success=True,
+                message="Transaction details retrieved successfully",
+                data={
+                    "transaction_id": transaction.transaction_id,
+                    "sender_user_id": transaction.sender_user_id,
+                    "receiver_user_id": transaction.receiver_user_id,
+                    "transaction_type": transaction.transaction_type,
+                    "amount": float(transaction.amount),
+                    "currency": transaction.currency,
+                    "status": transaction.status,
+                    "description": transaction.description,
+                    "fee": float(transaction.fee) if transaction.fee else 0,
+                    "net_amount": float(transaction.net_amount) if transaction.net_amount else 0,
+                    "reference_id": transaction.reference_id,
+                    "created_at": transaction.created_at,
+                    "updated_at": transaction.updated_at
+                }
+            )
+            
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def cancel_transaction(
+        self,
+        transaction_id: str,
+        payload: TransactionActionRequest
+    ) -> GlobalResponse:
+        try:
+            transaction = self.db.query(TransactionTable).filter(
+                TransactionTable.transaction_id == transaction_id
+            ).first()
+            
+            if not transaction:
+                raise HTTPException(status_code=404, detail="Transaction not found")
+            
+            if transaction.status not in [TransactionStatus.PENDING.value, TransactionStatus.SUCCESS.value]:
+                raise HTTPException(status_code=400, detail=f"Cannot cancel transaction with status: {transaction.status}")
+            
+            # Update transaction status
+            old_status = transaction.status
+            transaction.status = TransactionStatus.CANCELLED.value
+            transaction.updated_at = datetime.now(timezone.utc)
+            
+            # If transaction was successful, refund to sender
+            if old_status == TransactionStatus.SUCCESS.value:
+                sender_wallet = self.db.query(WalletTable).filter(
+                    WalletTable.user_id == transaction.sender_user_id
+                ).first()
+                
+                if sender_wallet:
+                    # Credit back the amount (including fee reversal logic could be added)
+                    sender_wallet.balance += Decimal(str(transaction.amount))
+                    sender_wallet.last_updated = datetime.now(timezone.utc)
+                    
+                    # Create refund transaction record
+                    refund_tx = TransactionTable(
+                        transaction_id=Generators.generate_transaction_id(),
+                        sender_user_id="SYSTEM_REFUND",
+                        receiver_user_id=transaction.sender_user_id,
+                        transaction_type="refund",
+                        amount=transaction.amount,
+                        currency=transaction.currency,
+                        status=TransactionStatus.SUCCESS.value,
+                        description=f"Refund for cancelled transaction {transaction_id}",
+                        reference_id=transaction_id,
+                        fee=0,
+                        net_amount=transaction.amount
+                    )
+                    self.db.add(refund_tx)
+            
+            self.db.commit()
+            
+            return GlobalResponse(
+                success=True,
+                message="Transaction cancelled successfully",
+                data={
+                    "transaction_id": transaction_id,
+                    "action": "cancel",
+                    "previous_status": old_status,
+                    "status": TransactionStatus.CANCELLED.value,
+                    "reason": payload.reason,
+                    "processed_by": self.authorization,
+                    "processed_at": datetime.now(timezone.utc)
+                }
+            )
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def list_wallets(
+        self,
+        page: int,
+        limit: int,
+        search: Optional[str] = None,
+        min_balance: Optional[float] = None,
+        max_balance: Optional[float] = None
+    ) -> GlobalResponse:
+        try:
+            # Join query for wallets with users
+            query = self.db.query(WalletTable).join(UserTable)
+            
+            # Apply filters
+            if search:
+                query = query.filter(
+                    or_(
+                        UserTable.full_name.ilike(f"%{search}%"),
+                        UserTable.email_address.ilike(f"%{search}%"),
+                        UserTable.phone_number.ilike(f"%{search}%"),
+                        WalletTable.user_id.ilike(f"%{search}%")
+                    )
+                )
+            if min_balance is not None:
+                query = query.filter(WalletTable.balance >= min_balance)
+            if max_balance is not None:
+                query = query.filter(WalletTable.balance <= max_balance)
+            
+            # Get total count
+            total = query.count()
+            
+            # Apply pagination
+            offset = (page - 1) * limit
+            wallets = query.order_by(desc(WalletTable.last_updated)).offset(offset).limit(limit).all()
+            
+            # Format response
+            wallet_list = []
+            for wallet in wallets:
+                user = self.db.query(UserTable).filter(UserTable.user_id == wallet.user_id).first()
+                wallet_list.append({
+                    "user_id": wallet.user_id,
+                    "full_name": user.full_name if user else "Unknown",
+                    "email": user.email_address if user else "Unknown",
+                    "phone": user.phone_number if user else "Unknown",
+                    "balance": float(wallet.balance),
+                    "currency": wallet.currency,
+                    "last_updated": wallet.last_updated.isoformat() if wallet.last_updated else None
+                })
+            
+            return GlobalResponse(
+                success=True,
+                message="Wallets retrieved successfully",
+                data={"wallets": wallet_list},
+                pagination={
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "total_pages": (total + limit - 1) // limit
+                }
+            )
+            
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def list_kyc_request(self) -> GlobalResponse:
+        # verify admin
+        kycLists = self.db.query(KYCTable).filter(
+            KYCTable.kyc_status == KYCStatus.PENDING
+        ).order_by(desc(KYCTable.created_at)).all()
+
+        kyc_pending_list = []
+
+        for kycList in kycLists:
+            user = self.db.query(UserTable).filter(UserTable.user_id == kycList.user_id).first()
+
+            kyc_pending_list.append({
+                "kyc_id": None,
+                "user_id": kycList.user_id,
+                "full_name": user.full_name if user else "Unknown",
+                "email_address": user.email_address if user else "Unknown",
+                "document_type": kycList.document_type,
+                "document_number": kycList.document_number,
+                "front_image_url": kycList.front_image_url,
+                "back_image_url": kycList.back_image_url,
+                "selfie_image_url": kycList.user_face_image_url,
+                "kyc_status": kycList.kyc_status.value if kycList.kyc_status else None,
+                "submitted_at": kycList.created_at
+            })
+
+        return GlobalResponse(
+            success=True,
+            message="KYC requests retrieved successfully",
+            data={
+                "kyc_request": kyc_pending_list
+            }
+        )
+
+    def kyc_request_details(self) -> GlobalResponse:
+        try:
+            # Extract user_id from path parameters via request
+            user_id = self.request.path_params.get("user_id")
+            
+            kyc_record = self.db.query(KYCTable).filter(
+                KYCTable.user_id == user_id
+            ).first()
+
+            if not kyc_record:
+                raise HTTPException(status_code=404, detail="KYC request not found for this user")
+
+            user = self.db.query(UserTable).filter(UserTable.user_id == user_id).first()
+
+            return GlobalResponse(
+                success=True,
+                message="KYC request details retrieved successfully",
+                data={
+                    "user_id": kyc_record.user_id,
+                    "full_name": user.full_name if user else "Unknown",
+                    "email_address": user.email_address if user else "Unknown",
+                    "phone_number": user.phone_number if user else "Unknown",
+                    "document_type": kyc_record.document_type,
+                    "document_number": kyc_record.document_number,
+                    "front_image_url": kyc_record.front_image_url,
+                    "back_image_url": kyc_record.back_image_url,
+                    "selfie_image_url": kyc_record.user_face_image_url,
+                    "kyc_status": kyc_record.kyc_status.value if kyc_record.kyc_status else None,
+                    "rejection_reason": kyc_record.rejection_reason,
+                    "submitted_at": kyc_record.created_at,
+                    "updated_at": kyc_record.updated_at
+                }
+            )
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+    
+    def update_kyc_request(self, payload: KYCUpdateRequest) -> GlobalResponse:
+        try:
+            kyc_record: KYCTable = self.db.query(KYCTable).filter(
+                KYCTable.user_id == payload.user_id
+            ).first()
+
+            if not kyc_record:
+                raise HTTPException(status_code=404, detail="KYC record not found")
+
+            try:
+                new_status = KYCStatus(payload.kyc_status)
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid KYC status")
+
+            if new_status == KYCStatus.REJECTED and not payload.rejection_reason:
+                raise HTTPException(status_code=400, detail="Rejection reason is required")
+
+            # Update KYC status
+            kyc_record.kyc_status = new_status
+            kyc_record.rejection_reason = payload.rejection_reason if new_status == KYCStatus.REJECTED else None
+            kyc_record.updated_at = datetime.now(timezone.utc)
+
+            # Create notification for the user
+            notification = NotificationTable(
+                target_id=payload.user_id,
+                type=NotificationType.ALERT,
+                title="KYC Verification Update",
+                body=f"Your KYC verification has been {new_status.value}. " + 
+                     (f"Reason: {payload.rejection_reason}" if payload.rejection_reason else ""),
+                creator="SYSTEM_ADMIN"
+            )
+            self.db.add(notification)
+            self.db.commit()
+
+            return GlobalResponse(
+                success=True,
+                message=f"KYC status updated to {new_status.value} successfully",
+                data={
+                    "user_id": payload.user_id,
+                    "kyc_status": new_status.value,
+                    "updated_at": kyc_record.updated_at
+                }
+            )
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def notify_user(self, user_id: str):
+        try:
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+            
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user_id).first()
+            push_allowed = request.send_push and (settings.allow_notifications if settings else True)
+
+            # Store notification in DB
+            notification = NotificationTable(
+                target_id=user_id,
+                type=request.notification_type,
+                title=request.title,
+                body=request.message,
+                img_url=request.image_url,
+                meta_data={
+                    "button_text": request.button_text,
+                    "button_link": request.button_link,
+                    "send_push": push_allowed,
+                    "send_email": request.send_email,
+                    "send_sms": request.send_sms,
+                },
+                creator=current_admin.admin_id
+            )
+            self.db.add(notification)
+            self.db.commit()
+
+            notification_service = NotificationServices(
+                db=self.db,
+                background_tasks=background_tasks
+            )
+            notification_service.send_notification(NotificationData(
+                user_id=user_id,
+                title=request.title,
+                body=request.message,
+                noty_type=request.notification_type,
+                data={
+                    "button_text": request.button_text,
+                    "button_link": request.button_link,
+                },
+                image_url=request.image_url,
+                push=push_allowed,
+                email=request.send_email,
+                sms=request.send_sms
+            ))
+
+            return GlobalResponse(
+                success=True,
+                message="Notification queued successfully",
+                data={
+                    "user_id": user_id,
+                    "title": request.title,
+                    "send_push": push_allowed,
+                    "send_email": request.send_email,
+                    "send_sms": request.send_sms
+                }
+            )
+
+        except HTTPException:
+            raise
+        
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+
+
+

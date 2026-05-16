@@ -15,9 +15,10 @@ from app.utils.notification_manager import NotificationManager
 
 from app.services.auth.user_verification import UserVerificationService
 from app.services.auth.token_service import TokenGenerators
+from app.services.wallet.wallet_service import WalletService
 
 
-class GoogleOauth(TokenGenerators):
+class GoogleOauth(TokenGenerators, WalletService):
     def __init__(
         self,
         db: Session,
@@ -29,6 +30,7 @@ class GoogleOauth(TokenGenerators):
         self.background_tasks = background_tasks
         self.request = request
         self.authorization = authorization
+        super().__init__(self.db)
 
     def google_login(
         self,
@@ -64,7 +66,10 @@ class GoogleOauth(TokenGenerators):
 
             # print(f"{email_address} {email_verified}")
             if (not email_address or not email_verified):
-                raise HTTPException(status_code=404, detail=String.EMAIL_OR_PHONE_REQUIRED)
+                raise HTTPException(
+                    status_code=400,
+                    detail=String.EMAIL_OR_PHONE_REQUIRED
+                )
             
             registrationService = RegistrationService(
                 db=self.db,
@@ -72,7 +77,7 @@ class GoogleOauth(TokenGenerators):
                 request=self.request,
                 authorization=self.authorization
             )
-
+            
             existing_user: UserTable = registrationService.check_user_already_exists(
                 email=email_address
             )
@@ -80,7 +85,11 @@ class GoogleOauth(TokenGenerators):
             # login
             if existing_user:
                 if (existing_user.link_google and existing_user.link_google != google_id):
-                    raise HTTPException(status_code=409, detail=String.USER_ALRADY_EXISTS)
+                    raise HTTPException(
+                        status_code=409,
+                        detail=String.USER_ALRADY_EXISTS
+                    )
+                
                 if not existing_user.link_google:
                     existing_user.link_google = google_id
                     self.db.commit()
@@ -91,50 +100,55 @@ class GoogleOauth(TokenGenerators):
                 created_user = registrationService.new_user(
                     full_name=full_name,
                     email_address=email_address,
-                    profile_image_url=profile_image_url,
                     device_id=device_id,
                     device_uuid=device_uuid,
+                    profile_image_url=profile_image_url,
                     ip=ip,
-                    background_tasks=self.background_tasks
+                    country_iso=None
                 )
 
                 # email verified
                 created_user.email_verified = True
                 created_user.link_google = google_id
+
                 self.db.commit()
                 self.db.refresh(created_user)
 
                 # reward
-                reward_service = RewardService()
-                reword = ENV.NEW_USER_REWARD_WITH_NO_REFERRAL
+                reward = ENV.NEW_USER_REWARD_WITH_NO_REFERRAL
 
-                reward_service.send_reward(
-                    background_tasks=self.background_tasks,
-                    db=self.db,
+                self.send_reward(
                     user_id=created_user.user_id,
                     title="Welcome Reward",
-                    body=f"Welcome to PocketPay! You have rechived a reward of {reword} BD.",
-                    amount=reword
+                    body=f"Welcome to PocketPay! You have rechived a reward of {reward} BD.",
+                    amount=reward
                 )
             
-            token_service = Token()
             user = existing_user if existing_user else created_user
 
             # Generate access token
-            access_token = token_service.create_access_token(data={
-                "user_id": user.user_id,
-                "email_address": user.email_address,
-                "device_id": device_id,
-                "device_uuid": device_uuid
-            })
+            access_token = self._create_token(
+                token_type="access",
+                expire_min=ENV.ACCESS_EXPIRE,
+                data={
+                    "user_id": user.user_id,
+                    "email_address": user.email_address,
+                    "device_id": device_id,
+                    "device_uuid": device_uuid
+                }
+            )
 
             # Generate refresh token
-            refresh_token = token_service.create_refresh_token(data={
-                "user_id": user.user_id,
-                "email_address": user.email_address,
-                "device_id": device_id,
-                "device_uuid": device_uuid
-            })
+            refresh_token = self._create_token(
+                token_type="refresh",
+                expire_min=ENV.REFRESH_EXPIRE,
+                data={
+                    "user_id": user.user_id,
+                    "email_address": user.email_address,
+                    "device_id": device_id,
+                    "device_uuid": device_uuid
+                }
+            )
 
             # Update session
             session = self.db.query(SessionTable).filter(
@@ -153,6 +167,7 @@ class GoogleOauth(TokenGenerators):
                 session.login_at = Helpers.utc6dhaka()
                 self.db.commit()
                 self.db.refresh(session)
+            
             else:
                 session = SessionTable(
                     user_id=user.user_id,
@@ -288,3 +303,7 @@ class GoogleOauth(TokenGenerators):
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+
+

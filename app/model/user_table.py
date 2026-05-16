@@ -19,7 +19,7 @@ class UserTable(Base):
     country_code = Column(
         String(4),
         ForeignKey("country_list.country_code"),
-        nullable=False
+        nullable=True
     )
     
     phone_number = Column(String(14), unique=True, index=True, nullable=True)
@@ -34,6 +34,8 @@ class UserTable(Base):
     user_type = Column(Enum(UserType), default=UserType.NORMAL)
     user_gender = Column(Enum(Gender), default=Gender.UNDIFINED)
     date_of_birth = Column(DateTime(timezone=True), nullable=True)
+
+    referral_account = Column(String, unique=False, nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=utc6dhaka)
     updated_at = Column(DateTime(timezone=True), onupdate=utc6dhaka)

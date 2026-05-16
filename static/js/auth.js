@@ -42,29 +42,39 @@ class AuthService {
                 })
             });
 
-            const data = await response.json();
+            if (response.status === 200) {
+                const data = await response.json();
 
-            if (data.success) {
-                // Save tokens and non-sensitive info in localStorage
-                localStorage.setItem('admin_id', data.data.admin_id);
-                localStorage.setItem('admin_email', data.data.email);
-                localStorage.setItem('admin_access_token', data.data.access_token);
-                localStorage.setItem('admin_refresh_token', data.data.refresh_token);
-                localStorage.setItem('admin_device_id', deviceId);
-                localStorage.setItem('admin_device_uuid', deviceUuid);
+                if (data.success) {
+                    // Save tokens and non-sensitive info in localStorage
+                    localStorage.setItem('admin_id', data.data.admin_id);
+                    localStorage.setItem('admin_access_token', data.data.access_token);
+                    localStorage.setItem('admin_refresh_token', data.data.refresh_token);
+                    localStorage.setItem('admin_device_id', deviceId);
+                    localStorage.setItem('admin_device_uuid', deviceUuid);
+                    
+                    showToast('Login successful!', 'success');
 
-                showToast('Login successful!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/admin/dashboard';
+                    }, 500);
 
-                setTimeout(() => {
-                    window.location.href = '/admin/dashboard';
-                }, 500);
+                    return true;
+                }
 
-                return true;
-            }
+                showLoginErrorDialog(data.message || 'Login failed');
+                return false;
+            } else if (response.status === 404) {
+                showToast('Admin account not found', 'error');
+                // showLoginErrorDialog('Admin account not found');
+                return false;
+            } else if (response.status === 401) {
+                showLoginErrorDialog('Invalid email or password');
+                return false;
+            } 
 
-            showLoginErrorDialog(data.message || 'Login failed');
+            showLoginErrorDialog('Login failed');
             return false;
-
         } catch (error) {
             console.error(error);
             showLoginErrorDialog('Login error');
@@ -81,6 +91,7 @@ class AuthService {
                 method: "POST",
                 credentials: "include"
             });
+
         } finally {
             localStorage.clear();
             window.location.href = "/admin/login";
@@ -183,8 +194,8 @@ function setupLoginForm() {
         // Attempt login - credentials are sent in request body, NOT in URL
         const result = await Auth.login(email, password);
         
-        if (!result.success) {
-            showError(result.message || 'Login failed');
+        if (!result) {
+            showError('Login failed');
         }
     });
 }

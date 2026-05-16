@@ -24,6 +24,7 @@ from app.router.offer_router import offer_router
 from app.router.qr_router import qr_router
 from app.router.recharge_router import recharge_router
 from app.router.template_router import template_router
+from app.router.settings_router import settings_router
 from app.router.user_router import user_router
 from app.router.wallet_router import wallet_router
 
@@ -55,10 +56,6 @@ TMP_DIR = Path("uploads/tmp")
 
 @app.on_event("startup")
 def create_default_admin_on_startup():
-    if not all([ENV.ADMIN_EMAIL, ENV.ADMIN_PASSWORD, ENV.ADMIN_NAME]):
-        print("Default admin skipped: ADMIN_EMAIL, ADMIN_PASSWORD, or ADMIN_NAME is missing.")
-        return
-
     db = SessionLocal()
     try:
         setupServices = SetupServices(
@@ -68,11 +65,16 @@ def create_default_admin_on_startup():
             authorization=None
         )
 
-        setupServices.create_default_admin(
-            email=ENV.ADMIN_EMAIL,
-            password=ENV.ADMIN_PASSWORD,
-            full_name=ENV.ADMIN_NAME
-        )
+        if all([ENV.ADMIN_EMAIL, ENV.ADMIN_PASSWORD, ENV.ADMIN_NAME]):
+            setupServices.create_default_admin(
+                email=ENV.ADMIN_EMAIL,
+                password=ENV.ADMIN_PASSWORD,
+                full_name=ENV.ADMIN_NAME
+            )
+        else:
+            print("Default admin skipped: ADMIN_EMAIL, ADMIN_PASSWORD, or ADMIN_NAME is missing.")
+
+        setupServices.add_default_countries()
 
         setupServices.create_default_user(
             email=ENV.DEFAULT_USER_EMAIL,
@@ -80,8 +82,7 @@ def create_default_admin_on_startup():
             full_name=ENV.DEFAULT_USER_NAME
         )
 
-        setupServices.add_default_countries()
-
+        setupServices.create_settings()
 
     finally:
         db.close()
@@ -159,6 +160,7 @@ app.include_router(offer_router, prefix="/offer", tags=["Offers"])              
 app.include_router(qr_router, prefix="/qr", tags=["Mack QR"])                       # check
 app.include_router(recharge_router, prefix="/recharge", tags=["Mobile Recharge"])   # check
 app.include_router(template_router, prefix="", tags=["Templates"])                  # check
+app.include_router(settings_router, prefix="/admin/settings", tags=["Admin Settings"]) # check
 app.include_router(user_router, prefix="/user", tags=["User Data"])                 # check
 app.include_router(wallet_router, prefix="/wallet", tags=["Wallet"])                # check
 

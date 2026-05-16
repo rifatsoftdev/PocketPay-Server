@@ -1,7 +1,8 @@
 import os, json
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import BackgroundTasks, HTTPException, Request
+from fastapi import BackgroundTasks, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from decimal import Decimal, ROUND_HALF_UP
@@ -92,22 +93,20 @@ class WalletService:
         )
     
     def __take_profit(self, amount: float) -> None:
-        # service_charge.py file current folder
-        current_dir = os.path.dirname(os.path.abspath(__file__))  # app/utils
-
-        # JSON file absolute path
-        json_db = os.path.join(current_dir, '..', 'data', 'pocketpay.json')
-        json_db = os.path.abspath(json_db)
+        JSON_DB = "data/pocketpay.json"
 
         # JSON read
-        with open(json_db, "r") as file:
+        with open(JSON_DB, "r") as file:
             data = json.load(file)
 
-        # admin_profit update
-        data["admin_profit"] = data.get("admin_profit", 0) + amount
+        from decimal import Decimal
+
+        data["admin_profit"] = str(
+            Decimal(str(data.get("admin_profit", 0))) + Decimal(str(amount))
+        )
 
         # JSON write
-        with open(json_db, "w") as file:
+        with open(JSON_DB, "w") as file:
             json.dump(data, file, indent=4)
     
     def service_charge(self, amount: Decimal) -> ServiceChargeData:
@@ -158,10 +157,16 @@ class WalletService:
     ) -> bool:
         try:
             if amount <= 0:
-                raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Amount must be greater than zero"
+                )
 
             if sender_id == receiver_id:
-                raise HTTPException(status_code=400, detail="Sender and receiver cannot be same")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Sender and receiver cannot be same"
+                )
 
             sender_wallet = self.db.query(WalletTable).filter(
                 WalletTable.user_id == sender_id
@@ -172,24 +177,43 @@ class WalletService:
             ).with_for_update().first()
 
             if not sender_wallet:
-                raise HTTPException(status_code=404, detail="Sender's wallet not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Sender's wallet not found"
+                )
 
             if not receiver_wallet:
-                raise HTTPException(status_code=404, detail="Receiver's wallet not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Receiver's wallet not found"
+                )
 
-            sender = self.db.query(UserTable).filter(UserTable.user_id == sender_id).first()
-            receiver = self.db.query(UserTable).filter(UserTable.user_id == receiver_id).first()
+            sender = self.db.query(UserTable).filter(
+                UserTable.user_id == sender_id
+            ).first()
+            receiver = self.db.query(UserTable).filter(
+                UserTable.user_id == receiver_id
+            ).first()
 
             if not sender:
-                raise HTTPException(status_code=404, detail="Sender not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Sender not found"
+                )
 
             if not receiver:
-                raise HTTPException(status_code=404, detail="Receiver not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Receiver not found"
+                )
 
-            charge: ServiceChargeData = WalletService.service_charge(amount)
+            charge: ServiceChargeData = self.service_charge(amount)
 
             if sender_wallet.balance < charge.total:
-                raise HTTPException(status_code=400, detail=String.INSUFFICIENT_BALANCE)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=String.INSUFFICIENT_BALANCE
+                )
 
             sender_account = (sender.country_code + sender.phone_number) if sender.phone_number else (sender.email_address or sender.user_id)
             receiver_account = (
@@ -322,6 +346,46 @@ class WalletService:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Cancel Trx Error: {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
     
+    def send_reward(
+        self,
+        user_id: str,
+        title: str,
+        body: str,
+        amount: Decimal,
+    ):
+        try:
+            # print(String.SYSTEM_USER_ID, user_id)
+            process_status: bool = self.process_transaction(
+                sender_id=String.SYSTEM_USER_ID,
+                receiver_id=user_id,
+                amount=amount,trx_type=TransactionType.REWARD
+            )
+
+            if process_status:
+                try:
+                    notificationServices = NotificationServices(
+                        db=self.db,
+                        background_tasks=self.background_tasks
+                    )
+
+                    notificationServices.send_notification(NotificationData(
+                        user_id=user_id,
+                        title=title,
+                        body=body,
+                        noty_type="reward",
+                    ))
+                    
+                except Exception as e:
+                    print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Reward notification failed: {e}")
+                    
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
+            raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
     def __revert_profit(self, amount: float) -> None:
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))

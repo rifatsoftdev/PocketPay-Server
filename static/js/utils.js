@@ -10,5 +10,12 @@ function generateUUID() {
 // 
 function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
-    sidebar.classList.toggle("collapsed");
+    if (!sidebar) return;
+
+    if (window.matchMedia("(max-width: 1024px)").matches) {
+        sidebar.classList.toggle("show");
+    } else {
+        sidebar.classList.toggle("collapsed");
+    }
 }
+
