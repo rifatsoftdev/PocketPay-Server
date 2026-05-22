@@ -270,7 +270,6 @@ class RegistrationService(UserRepository, WalletService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
-
     def final_setup(self, payload: FinalSetupRequest):
         """Only required on google signin or singup"""
         try:
@@ -416,3 +415,5 @@ class RegistrationService(UserRepository, WalletService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
         
+
+

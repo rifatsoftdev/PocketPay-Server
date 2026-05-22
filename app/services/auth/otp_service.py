@@ -1,13 +1,12 @@
-from fastapi import HTTPException, Depends, Request, BackgroundTasks
+from fastapi import HTTPException, Request, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 from app.constants import ENV, AnsiColor, String
-from app.model import OTPTable, SessionTable, UserTable
-from app.schema import OTPRequest, GlobalResponse
-from app.schema.auth_schemas import VerifyOTPRequest
-from app.utils import Token, Generators, Hashing, Helpers
+from app.enums import OTPMethod, OTPPurpose, TwoFactorType
+from app.model import OTPTable, SessionTable, TwoFactorTable, UserTable
+from app.schema import OTPRequest, GlobalResponse, VerifyOTPRequest
+from app.utils import Token, Generators, Hashing, Helpers, TwoFactorAuth
 from app.utils.bg_task import send_otp_email
 
 
@@ -24,48 +23,113 @@ class OTPService:
         self.request = request
         self.authorization = authorization
 
+    @staticmethod
+    def _enum_value(value) -> str:
+        return value.value if hasattr(value, "value") else str(value)
+
+    def _decode_otp_request_token(self, otp_token: str) -> dict:
+        token_payload = Token().decode_token(otp_token)
+
+        if token_payload is None:
+            raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
+
+        if token_payload.get("type") != "otp_token":
+            raise HTTPException(status_code=401, detail=String.INVALID_TOKEN_TYPE)
+
+        if not token_payload.get("user_id"):
+            raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
+
+        return token_payload
+
+    def _get_otp_user(self, user_id: str) -> UserTable:
+        user = self.db.query(UserTable).filter(UserTable.user_id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail=String.USER_NOT_FOUND)
+        return user
+
+    def _get_otp_delivery_address(self, user: UserTable, method: str) -> str:
+        if method == OTPMethod.EMAIL.value:
+            tfa_method = self.db.query(TwoFactorTable).filter(
+                TwoFactorTable.user_id == user.user_id,
+                TwoFactorTable.method_type == TwoFactorType.EMAIL,
+                TwoFactorTable.is_enabled == True
+            ).first()
+            if not tfa_method:
+                raise HTTPException(status_code=400, detail="Email two-factor method is not enabled")
+            return tfa_method.delivery_address or user.email_address
+
+        if method == OTPMethod.SMS.value:
+            tfa_method = self.db.query(TwoFactorTable).filter(
+                TwoFactorTable.user_id == user.user_id,
+                TwoFactorTable.method_type == TwoFactorType.SMS,
+                TwoFactorTable.is_enabled == True
+            ).first()
+            if not tfa_method:
+                raise HTTPException(status_code=400, detail="SMS two-factor method is not enabled")
+            phone_number = tfa_method.delivery_address or f"{user.country_code or ''}{user.phone_number or ''}"
+            return phone_number or None
+
+        raise HTTPException(status_code=400, detail="OTP can only be sent by email or sms")
+
+    def _verify_totp(self, user: UserTable, otp: str) -> None:
+        tfa_method = self.db.query(TwoFactorTable).filter(
+            TwoFactorTable.user_id == user.user_id,
+            TwoFactorTable.method_type == TwoFactorType.TOTP,
+            TwoFactorTable.is_enabled == True
+        ).first()
+
+        if not tfa_method or not tfa_method.secret_key:
+            raise HTTPException(status_code=400, detail="TOTP two-factor method is not enabled")
+
+        if not TwoFactorAuth.verify_otp(tfa_method.secret_key, otp):
+            raise HTTPException(status_code=401, detail=String.INVALID_OTP)
+
+    def _validate_otp_request(
+        self,
+        token_payload: dict,
+        method: str,
+        purpose: str,
+        device_id: str,
+        device_uuid: str
+    ) -> None:
+        token_device_id = token_payload.get("device_id") or token_payload.get("android_id")
+        token_device_uuid = token_payload.get("device_uuid") or token_payload.get("android_uuid")
+
+        if device_id != token_device_id or device_uuid != token_device_uuid:
+            raise HTTPException(status_code=401, detail="Invalid Device")
+
+        if purpose != OTPPurpose.LOGIN.value:
+            raise HTTPException(status_code=400, detail="Invalid OTP purpose")
+
     def send_otp(
         self,
         payload: OTPRequest
     ) -> GlobalResponse:
         try:
-            # print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}:     {request}")
-            # get request data 
-            method = payload.method
-            delever_to = payload.delever_to
+            method = self._enum_value(payload.method)
+            purpose = self._enum_value(payload.purpose)
+            otp_token = payload.otp_token
             device_id = payload.device_id
             device_uuid = payload.device_uuid
 
-            # Request info
-            # ip:str = request.client.host
-            # user_agent:str = request.headers.get("user-agent")
-            # auth:str = request.headers.get("authorization"),
-            # path:str = request.url.path,
-            # query:dict = dict(request.query_params),
-            # cookies:dict = request.cookies
+            token_payload = self._decode_otp_request_token(otp_token)
+            self._validate_otp_request(token_payload, method, purpose, device_id, device_uuid)
 
-            # check
+            user = self._get_otp_user(token_payload.get("user_id"))
+            delever_to = self._get_otp_delivery_address(user, method)
+
             if not delever_to:
-                raise HTTPException(status_code=400, detail="Email or phone required to send OTP")
+                raise HTTPException(status_code=400, detail="OTP delivery address not found")
 
             # check otp record
             otp_record = self.db.query(OTPTable).filter(
-                OTPTable.delever_to == delever_to
+                OTPTable.otp_token == otp_token
             ).first()
 
             # delete old otp if exist
             if otp_record:
                 self.db.delete(otp_record)
-                self.db.commit()
-            
-            # genatet otp token
-            token_service = Token()
-            otp_token = token_service.create_otp_token(data={
-                "method": method,
-                "delever_to": delever_to,
-                "device_id": device_id,
-                "device_uuid": device_uuid
-            })
+                self.db.flush()
 
             # genaret OTP
             make_otp = Generators.generate_otp()
@@ -73,7 +137,7 @@ class OTPService:
 
             # insert otp data
             otp_record = OTPTable(
-                user_id=None,
+                user_id=user.user_id,
                 otp_token=otp_token,
                 device_id=device_id,
                 device_uuid=device_uuid,
@@ -83,20 +147,23 @@ class OTPService:
             )
             self.db.add(otp_record)
 
-            if (ENV.DEBUG):
+            if ENV.DEBUG:
                 print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}:     OTP sent to {delever_to} code {make_otp}")
 
             # send OTP on user
-            if (method == "email"):
+            status = False
+            if method == OTPMethod.EMAIL.value:
                 self.background_tasks.add_task(send_otp_email, delever_to, make_otp)
                 status = True
-            elif (method == "phone"):
-                otp_manager = SMSSent()
-                status = otp_manager.send_sms(
-                    to_phone=delever_to,
-                    title="",
-                    body=f"Your OTP code is {make_otp}. Please use this code to complete your verification."
-                )
+            elif method == OTPMethod.SMS.value:
+                status = True
+                # otp_manager = SMSSent()
+
+                # status = otp_manager.send_sms(
+                #     to_phone=delever_to,
+                #     title="",
+                #     body=f"Your OTP code is {make_otp}. Please use this code to complete your verification."
+                # )
 
             # check otp send status
             if not status:
@@ -109,7 +176,9 @@ class OTPService:
                 success=True,
                 message="OTP resent successfully",
                 data={
-                    "otp_token": otp_token
+                    "otp_token": otp_token,
+                    "method": method,
+                    "purpose": purpose
                 }
             )
 
@@ -126,8 +195,8 @@ class OTPService:
         payload: VerifyOTPRequest
     ) -> GlobalResponse:
         try:
-            method: str = payload.method
-            deliver_to: str = payload.delever_to
+            method: str = self._enum_value(payload.method)
+            purpose: str = self._enum_value(payload.purpose)
             otp: str = payload.otp
             otp_token: str = payload.otp_token
             device_id: str = payload.device_id
@@ -135,48 +204,43 @@ class OTPService:
 
             ip: str = self.request.client.host
 
-            otp_record = self.db.query(OTPTable).filter(
-                OTPTable.delever_to == deliver_to,
-                OTPTable.otp_token == otp_token
-            ).first()
+            token_payload = self._decode_otp_request_token(otp_token)
+            self._validate_otp_request(token_payload, method, purpose, device_id, device_uuid)
+            user = self._get_otp_user(token_payload.get("user_id"))
 
-            if not otp_record:
-                raise HTTPException(status_code=404, detail=String.OTP_NOT_FOUND)
+            if method == OTPMethod.TOTP.value:
+                self._verify_totp(user, otp)
+            else:
+                otp_record = self.db.query(OTPTable).filter(
+                    OTPTable.otp_token == otp_token
+                ).first()
+
+                if not otp_record:
+                    raise HTTPException(status_code=404, detail=String.OTP_NOT_FOUND)
+
+                if otp_record.expires_at and otp_record.expires_at < Helpers.utc6dhaka():
+                    self.db.delete(otp_record)
+                    self.db.commit()
+                    raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
+
+                if not Hashing.verify_otp(otp, otp_record.otp_hash):
+                    raise HTTPException(status_code=401, detail=String.INVALID_OTP)
+
+                expected_delivery_address = self._get_otp_delivery_address(user, method)
+                if otp_record.delever_to != expected_delivery_address:
+                    raise HTTPException(status_code=400, detail="Invalid OTP method")
+
+                self.db.delete(otp_record)
+
+                if not user.email_verified and method == OTPMethod.EMAIL.value:
+                    user.email_verified = True
+
+                if not user.phone_verified and method == OTPMethod.SMS.value:
+                    user.phone_verified = True
+
+                self.db.commit()
 
             token_service = Token()
-            token_payload = token_service.decode_token(otp_token)
-
-            if token_payload is None:
-                raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
-
-            token_device_id = token_payload.get("device_id") or token_payload.get("android_id")
-            token_device_uuid = token_payload.get("device_uuid") or token_payload.get("android_uuid")
-            if device_id != token_device_id or device_uuid != token_device_uuid:
-                raise HTTPException(status_code=401, detail="Invalid Device")
-
-            if not Hashing.verify_otp(otp, otp_record.otp_hash):
-                raise HTTPException(status_code=401, detail=String.INVALID_OTP)
-
-            user = self.db.query(UserTable).filter(
-                or_(
-                    UserTable.email_address == deliver_to,
-                    UserTable.phone_number == deliver_to[3::]
-                )
-            ).first()
-
-            if not user:
-                raise HTTPException(status_code=404, detail=String.USER_NOT_FOUND)
-
-            self.db.delete(otp_record)
-
-            if not user.email_verified and method == "email":
-                user.email_verified = True
-
-            if not user.phone_verified and method == "phone":
-                user.phone_verified = True
-
-            self.db.commit()
-
             access_token = token_service.create_access_token(data={
                 "user_id": user.user_id,
                 "email_address": user.email_address,
@@ -232,7 +296,7 @@ class OTPService:
                     "access_token": access_token,
                     "refresh_token": refresh_token,
                     "token_type": "bearer",
-                    "expires_in": 900,
+                    "expires_in": ENV.ACCESS_EXPIRE,
                     "email_address": user.email_address,
                     "phone_number": user.country_code + user.phone_number
                 }

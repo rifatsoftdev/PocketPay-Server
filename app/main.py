@@ -26,6 +26,7 @@ from app.router.qr_router import qr_router
 from app.router.recharge_router import recharge_router
 from app.router.template_router import template_router
 from app.router.settings_router import settings_router
+from app.router.tfa_router import tfa_router
 from app.router.user_router import user_router
 from app.router.wallet_router import wallet_router
 
@@ -64,6 +65,7 @@ app.add_middleware(
         "/offer",
         "/qr",
         "/recharge",
+        "/tfa",
         "/user",
         "/wallet",
     ]
@@ -190,6 +192,7 @@ app.include_router(qr_router, prefix="/qr", tags=["Mack QR"])                   
 app.include_router(recharge_router, prefix="/recharge", tags=["Mobile Recharge"])   # check
 app.include_router(template_router, prefix="", tags=["Templates"])                  # check
 app.include_router(settings_router, prefix="/admin/settings", tags=["Admin Settings"]) # check
+app.include_router(tfa_router, prefix="/tfa", tags=["Two-Factor Authentication"])   # check
 app.include_router(user_router, prefix="/user", tags=["User Data"])                 # check
 app.include_router(wallet_router, prefix="/wallet", tags=["Wallet"])                # check
 

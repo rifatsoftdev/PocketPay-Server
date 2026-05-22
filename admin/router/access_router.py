@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.database import get_db
-from app.schema import GlobalResponse, KYCUpdateRequest
+from app.schema import GlobalResponse, KYCUpdateRequest, AdminNotyfyResuest
 
 from admin.schema.admin_schema import *
 
@@ -278,7 +278,7 @@ async def update_kyc_request(
 
 @admin_access_router.post("/users/{user_id}/notify", response_model=GlobalResponse)
 async def notify_user(
-    user_id: str,
+    payload: AdminNotyfyResuest,
 
     request: Request,
     background_tasks: BackgroundTasks,
@@ -292,7 +292,7 @@ async def notify_user(
         authorization=authorization
     )
 
-    return adminAccessServices.notify_user(user_id=user_id)
+    return adminAccessServices.notify_user(payload=payload)
 
 
 

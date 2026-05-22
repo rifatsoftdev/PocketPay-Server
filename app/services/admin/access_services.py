@@ -13,7 +13,7 @@ from app.model import (
     DeletedUserTable, NotificationTable, SettingsTable,
     AdminTable, UserTable, TransactionTable, WalletTable, KYCTable
 )
-from app.schema import GlobalResponse, KYCUpdateRequest
+from app.schema import GlobalResponse, KYCUpdateRequest, AdminNotyfyResuest
 from app.utils import Helpers, Generators, Hashing
 
 from admin.schema.admin_schema import *
@@ -119,7 +119,7 @@ class AdminAccessServices(UserVerificationService):
                             "user_id": user.user_id,
                             "full_name": user.full_name,
                             "email": user.email_address,
-                            "phone": user.country_code+user.phone_number,
+                            "phone": user.country_code+user.phone_number if (user.country_code and user.phone_number) else "None",
                             "created_at": user.created_at
                         } for user in recent_users
                     ]
@@ -619,33 +619,33 @@ class AdminAccessServices(UserVerificationService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
-    def notify_user(self, user_id: str):
+    def notify_user(self, payload: AdminNotyfyResuest):
         try:
             user = self.db.query(UserTable).filter(
-                UserTable.user_id == user_id
+                UserTable.user_id == payload.user_id
             ).first()
             
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
-            settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user_id).first()
-            push_allowed = request.send_push and (settings.allow_notifications if settings else True)
+            settings: SettingsTable = user.settings
+            push_allowed = self.request.send_push and (settings.allow_notifications if settings else True)
 
             # Store notification in DB
             notification = NotificationTable(
-                target_id=user_id,
-                type=request.notification_type,
-                title=request.title,
-                body=request.message,
-                img_url=request.image_url,
+                target_id=payload.user_id,
+                type=payload.notification_type,
+                title=payload.title,
+                body=payload.body,
+                img_url=payload.image_url,
                 meta_data={
-                    "button_text": request.button_text,
-                    "button_link": request.button_link,
+                    "button_text": payload.button_text,
+                    "button_link": payload.button_link,
                     "send_push": push_allowed,
-                    "send_email": request.send_email,
-                    "send_sms": request.send_sms,
+                    "send_email": payload.send_email,
+                    "send_sms": payload.send_sms,
                 },
-                creator=current_admin.admin_id
+                creator=payload.admin_id
             )
             self.db.add(notification)
             self.db.commit()
@@ -673,11 +673,11 @@ class AdminAccessServices(UserVerificationService):
                 success=True,
                 message="Notification queued successfully",
                 data={
-                    "user_id": user_id,
-                    "title": request.title,
+                    "user_id": payload.user_id,
+                    "title": payload.title,
                     "send_push": push_allowed,
-                    "send_email": request.send_email,
-                    "send_sms": request.send_sms
+                    "send_email": payload.send_email,
+                    "send_sms": payload.send_sms
                 }
             )
 

@@ -1,8 +1,7 @@
-from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, Enum, JSON
+from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.enums import KYCStatus
 from app.utils.helpers import utc6dhaka
 
 
@@ -17,10 +16,6 @@ class SettingsTable(Base):
     dark_mode = Column(Boolean, default=False)
     country = Column(String, default="BD")
     language = Column(String, default="en")
-
-    # Secrutry
-    two_factor_enabled = Column(Boolean, nullable=False, default=False)
-    two_factor = Column(JSON, nullable=True)
 
     biometric_enabled = Column(Boolean, nullable=False, default=False)
     biometric_secret = Column(String, nullable=True)

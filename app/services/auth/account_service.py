@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.constants import AnsiColor, String, ENV
 from app.enums import NotificationType
-from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, UserTable
+from app.model import DeletedUserTable, NotificationTable, SessionTable, SettingsTable, TwoFactorTable, UserTable
 from app.schema import (
     GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest,
     LogoutRequest, LogoutAllRequest, FCMTokenRequest, AccessTokenRequest
@@ -39,6 +39,45 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
         )
         UserRepository.__init__(self, db)
         TokenGenerators.__init__(self, db)
+
+    @staticmethod
+    def _normalize_tfa_method(method_type) -> str:
+        return method_type.value if hasattr(method_type, "value") else str(method_type).lower()
+
+    @staticmethod
+    def _mask_email(email_address: str | None) -> str | None:
+        if not email_address or "@" not in email_address:
+            return None
+
+        local_part, domain = email_address.split("@", 1)
+        if not local_part:
+            return f"***@{domain}"
+
+        visible_count = 2 if len(local_part) > 2 else 1
+        return f"{local_part[:visible_count]}***@{domain}"
+
+    @staticmethod
+    def _mask_phone(phone_number: str | None) -> str | None:
+        if not phone_number:
+            return None
+
+        if len(phone_number) <= 4:
+            return "*" * len(phone_number)
+
+        visible_prefix = min(4, len(phone_number) - 2)
+        return f"{phone_number[:visible_prefix]}{'*' * (len(phone_number) - visible_prefix - 2)}{phone_number[-2:]}"
+
+    def _masked_tfa_destination(self, method_type: str, method: TwoFactorTable, user: UserTable) -> str | None:
+        delivery_address = method.delivery_address
+
+        if method_type == "email":
+            return self._mask_email(delivery_address or user.email_address)
+
+        if method_type == "sms":
+            phone_number = delivery_address or f"{user.country_code or ''}{user.phone_number or ''}" or None
+            return self._mask_phone(phone_number)
+
+        return None
 
     def login(
         self, 
@@ -104,14 +143,27 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             access_token = None
             refresh_token = None
 
-            is_2fa_required = bool(settings.two_factor_enabled)
-            two_factor_methods = []
+            enabled_tfa_methods = self.db.query(TwoFactorTable).filter(
+                TwoFactorTable.user_id == user.user_id,
+                TwoFactorTable.is_enabled == True
+            ).order_by(
+                TwoFactorTable.is_primary.desc(),
+                TwoFactorTable.created_at.asc()
+            ).all()
 
-            if isinstance(settings.two_factor, dict):
-                if settings.two_factor.get("totp"):
-                    two_factor_methods.append("totp")
-                if settings.two_factor.get("email"):
-                    two_factor_methods.append("email")
+            two_factor_method_names = [
+                self._normalize_tfa_method(method.method_type)
+                for method in enabled_tfa_methods
+            ]
+            two_factor_methods = [
+                {
+                    "method": method_type,
+                    "delivery_address": self._masked_tfa_destination(method_type, method, user),
+                    "is_primary": method.is_primary
+                }
+                for method, method_type in zip(enabled_tfa_methods, two_factor_method_names)
+            ]
+            is_2fa_required = bool(two_factor_method_names)
 
             if not is_2fa_required:
                 token_data = {
@@ -129,7 +181,7 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
 
                 refresh_token = self._create_token(
                     token_type="refresh",
-                    expire_min=ENV.REFRESH_EXPIRE,
+                    expire_day=ENV.REFRESH_EXPIRE,
                     data=token_data
                 )
             
@@ -163,13 +215,25 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.refresh(new_notification)
 
             if is_2fa_required:
+                request_token: str = self._create_token(
+                    token_type="otp_token",
+                    expire_min=5,
+                    data={
+                        "user_id": user.user_id,
+                        "device_id": device_id,
+                        "device_uuid": device_uuid,
+                        "type": "2fa_request"
+                    }
+                )
+                
                 return GlobalResponse(
                     success=True,
                     message="Two-factor verification required",
                     data={
                         "requires_2fa": True,
-                        "method": two_factor_methods[0] if two_factor_methods else None,
-                        "methods": two_factor_methods,
+                        "request_token": request_token, 
+                        "otp_token": request_token,
+                        "two_factor_methods": two_factor_methods,
                         "user_id": user.user_id,
                         "device_id": device_id,
                         "device_uuid": device_uuid
@@ -212,7 +276,7 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
 
             user_verification_service = UserVerificationService(self.db)
 
-            user = user_verification_service.verify_user(
+            user: UserTable = user_verification_service.verify_user(
                 user_id=user_id,
                 access_token=access_token,
                 device_id=device_id,
@@ -581,5 +645,3 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
-

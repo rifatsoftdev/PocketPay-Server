@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from app.constants import AnsiColor, ENV, String
-from app.model import OTPTable, SettingsTable
+from app.enums import TwoFactorType
+from app.model import OTPTable, TwoFactorTable
 from app.schema import (
     GlobalResponse, TOTPSetupRequest, TOTPConfirmRequest, TOTPAuthDisableRequest,
     EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest
@@ -43,33 +44,41 @@ class TFAServices:
             advance_check=False
         )
 
-    def __get_settings(self, user_id: str) -> SettingsTable:
-        settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user_id).first()
-        if not settings:
-            raise HTTPException(status_code=404, detail=String.SETTINGS_NOT_FOUND)
+    def __get_method(self, user_id: str, method_type: TwoFactorType) -> TwoFactorTable | None:
+        return self.db.query(TwoFactorTable).filter(
+            TwoFactorTable.user_id == user_id,
+            TwoFactorTable.method_type == method_type
+        ).first()
 
-        return settings
+    def __has_enabled_method(self, user_id: str) -> bool:
+        return self.db.query(TwoFactorTable).filter(
+            TwoFactorTable.user_id == user_id,
+            TwoFactorTable.is_enabled == True
+        ).first() is not None
 
-    @staticmethod
-    def __two_factor_data(settings: SettingsTable) -> dict:
-        if isinstance(settings.two_factor, dict):
-            return dict(settings.two_factor)
+    def __upsert_method(
+        self,
+        user_id: str,
+        method_type: TwoFactorType,
+        is_enabled: bool,
+        delivery_address: str = None,
+        secret_key: str = None
+    ) -> TwoFactorTable:
+        method = self.__get_method(user_id, method_type)
+        if not method:
+            method = TwoFactorTable(
+                user_id=user_id,
+                method_type=method_type
+            )
+            self.db.add(method)
+            self.db.flush()
 
-        return {}
-
-    @staticmethod
-    def __totp_secret(settings: SettingsTable) -> str:
-        two_factor = TFAServices.__two_factor_data(settings)
-        return two_factor.get("totp") or two_factor.get("secret")
-
-    @staticmethod
-    def __email_tfa(settings: SettingsTable) -> str:
-        two_factor = TFAServices.__two_factor_data(settings)
-        return two_factor.get("email")
-
-    @staticmethod
-    def __has_tfa_method(two_factor: dict) -> bool:
-        return bool(two_factor.get("totp") or two_factor.get("email"))
+        should_be_primary = is_enabled and not self.__has_enabled_method(user_id)
+        method.is_enabled = is_enabled
+        method.delivery_address = delivery_address
+        method.secret_key = secret_key
+        method.is_primary = should_be_primary
+        return method
 
     @staticmethod
     def __device_id(payload) -> str:
@@ -78,6 +87,8 @@ class TFAServices:
     @staticmethod
     def __device_uuid(payload) -> str:
         return getattr(payload, "device_uuid", None) or getattr(payload, "android_uuid", None)
+
+    # ==============================================================================
 
     def totp_setup(self, payload: TOTPSetupRequest) -> GlobalResponse:
         try:
@@ -88,17 +99,17 @@ class TFAServices:
                 device_uuid=self.__device_uuid(payload)
             )
 
-            settings = self.__get_settings(user.user_id)
-
-            if settings.two_factor_enabled and self.__totp_secret(settings):
+            existing_totp = self.__get_method(user.user_id, TwoFactorType.TOTP)
+            if existing_totp and existing_totp.is_enabled:
                 raise HTTPException(status_code=400, detail="Two Factor Authentication already enabled")
 
             secret = TwoFactorAuth.generate_secret()
-            settings.two_factor = {
-                **self.__two_factor_data(settings),
-                "totp": secret
-            }
-            settings.two_factor_enabled = False
+            method = self.__upsert_method(
+                user_id=user.user_id,
+                method_type=TwoFactorType.TOTP,
+                is_enabled=False,
+                secret_key=secret
+            )
 
             qr_uri = TwoFactorAuth.get_qr_uri(
                 user_email=user.email_address,
@@ -107,7 +118,7 @@ class TFAServices:
             )
 
             self.db.commit()
-            self.db.refresh(settings)
+            self.db.refresh(method)
 
             return GlobalResponse(
                 success=True,
@@ -136,8 +147,8 @@ class TFAServices:
                 device_uuid=self.__device_uuid(payload)
             )
 
-            settings = self.__get_settings(user.user_id)
-            stored_secret = self.__totp_secret(settings)
+            method = self.__get_method(user.user_id, TwoFactorType.TOTP)
+            stored_secret = method.secret_key if method else None
 
             if not stored_secret:
                 raise HTTPException(status_code=400, detail="TOTP secret not found")
@@ -145,14 +156,13 @@ class TFAServices:
             if not TwoFactorAuth.verify_otp(stored_secret, payload.totp_code):
                 raise HTTPException(status_code=400, detail="Invalid TOTP code")
 
-            settings.two_factor = {
-                **self.__two_factor_data(settings),
-                "totp": stored_secret
-            }
-            settings.two_factor_enabled = True
+            should_be_primary = not self.__has_enabled_method(user.user_id)
+            method.is_enabled = True
+            method.delivery_address = None
+            method.is_primary = should_be_primary
 
             self.db.commit()
-            self.db.refresh(settings)
+            self.db.refresh(method)
 
             return GlobalResponse(
                 success=True,
@@ -179,23 +189,13 @@ class TFAServices:
                 password=payload.user_password
             )
 
-            settings = self.__get_settings(user.user_id)
-
-            if not settings.two_factor_enabled:
-                raise HTTPException(status_code=400, detail="Two Factor Authentication is already disabled")
-
-            if not self.__totp_secret(settings):
+            method = self.__get_method(user.user_id, TwoFactorType.TOTP)
+            if not method or not method.is_enabled:
                 raise HTTPException(status_code=400, detail="TOTP secret not found")
 
-            two_factor = self.__two_factor_data(settings)
-            two_factor.pop("totp", None)
-            two_factor.pop("secret", None)
-
-            settings.two_factor = two_factor or None
-            settings.two_factor_enabled = self.__has_tfa_method(two_factor)
+            self.db.delete(method)
 
             self.db.commit()
-            self.db.refresh(settings)
 
             return GlobalResponse(
                 success=True,
@@ -212,6 +212,8 @@ class TFAServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
 
+    # ==============================================================================
+
     def email_setup(self, payload: EmailTFASetupRequest) -> GlobalResponse:
         try:
             user = self.__verify_user(
@@ -221,8 +223,8 @@ class TFAServices:
                 device_uuid=self.__device_uuid(payload)
             )
 
-            settings = self.__get_settings(user.user_id)
-            if settings.two_factor_enabled and self.__email_tfa(settings):
+            existing_email = self.__get_method(user.user_id, TwoFactorType.EMAIL)
+            if existing_email and existing_email.is_enabled:
                 raise HTTPException(status_code=400, detail="Email Two Factor Authentication already enabled")
 
             old_otp = self.db.query(OTPTable).filter(
@@ -289,8 +291,6 @@ class TFAServices:
                 device_uuid=self.__device_uuid(payload)
             )
 
-            settings = self.__get_settings(user.user_id)
-
             otp_record = self.db.query(OTPTable).filter(
                 OTPTable.user_id == user.user_id,
                 OTPTable.delever_to == user.email_address,
@@ -318,16 +318,17 @@ class TFAServices:
             if not Hashing.verify_otp(payload.otp, otp_record.otp_hash):
                 raise HTTPException(status_code=401, detail=String.INVALID_OTP)
 
-            two_factor = self.__two_factor_data(settings)
-            settings.two_factor = {
-                **two_factor,
-                "email": user.email_address
-            }
-            settings.two_factor_enabled = True
+            method = self.__upsert_method(
+                user_id=user.user_id,
+                method_type=TwoFactorType.EMAIL,
+                is_enabled=True,
+                delivery_address=user.email_address,
+                secret_key=None
+            )
             self.db.delete(otp_record)
 
             self.db.commit()
-            self.db.refresh(settings)
+            self.db.refresh(method)
 
             return GlobalResponse(
                 success=True,
@@ -354,18 +355,13 @@ class TFAServices:
                 password=payload.user_password
             )
 
-            settings = self.__get_settings(user.user_id)
-            if not self.__email_tfa(settings):
+            method = self.__get_method(user.user_id, TwoFactorType.EMAIL)
+            if not method or not method.is_enabled:
                 raise HTTPException(status_code=400, detail="Email Two Factor Authentication is already disabled")
 
-            two_factor = self.__two_factor_data(settings)
-            two_factor.pop("email", None)
-
-            settings.two_factor = two_factor or None
-            settings.two_factor_enabled = self.__has_tfa_method(two_factor)
+            self.db.delete(method)
 
             self.db.commit()
-            self.db.refresh(settings)
 
             return GlobalResponse(
                 success=True,
@@ -381,3 +377,14 @@ class TFAServices:
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+    # ==============================================================================
+
+    def sms_setup(self):
+        pass
+    
+    def sms_confirm(self):
+        pass
+
+    def sms_disable(self):
+        pass

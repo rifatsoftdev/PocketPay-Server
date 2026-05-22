@@ -1,11 +1,9 @@
 from app.schema.auth_schemas import (
     LoginRequest, RegisterRequest, AccessTokenRequest, FinalSetupRequest,
-    TOTPSetupRequest, TOTPConfirmRequest, TOTPAuthDisableRequest,
-    EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest,
-    GoogleLoginRequest, OTPRequest,
+    GoogleLoginRequest,  LogoutAllRequest, DeleteAccountRequest,
     LogoutRequest, ForgetPasswordRequest, ResetPasswordRequest,
     CancelDeleteAccountRequest, ChangePasswordRequest, LinkGoogleAccountRequest,
-    FCMTokenRequest, VerifyOTPRequest, LogoutAllRequest, DeleteAccountRequest
+    FCMTokenRequest
 )
 from app.schema.bank_schema import BankListOut, BankToPocketRequest, PocketToBankRequest
 from app.schema.bill_schemas import (
@@ -19,9 +17,16 @@ from app.schema.donations_schema import (
 )
 from app.schema.global_schema import GlobalResponse, GlobalRequest
 from app.schema.history_schema import *
+from app.schema.otp_schema import OTPRequest, VerifyOTPRequest
+from app.schema.notify_schema import AdminNotyfyResuest
 from app.schema.offer_schema import OfferCreateRequest, OfferUpdateRequest
 from app.schema.qr_schema import *
 from app.schema.recharge_schemas import *
+from app.schema.tfa_schema import (
+    TOTPSetupRequest, TOTPConfirmRequest, TOTPAuthDisableRequest,
+    EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest,
+    SMSTFASetupRequest, SMSTFAConfirmRequest, SMSTFADisableRequest,
+)
 from app.schema.user_schemas import KYCRequest, KYCUpdateRequest
 from app.schema.wallet_schema import SendMoneyRequest
 

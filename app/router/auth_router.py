@@ -28,31 +28,6 @@ auth_router = APIRouter()
 
 
 
-
-# ==============================================================================
-"""
-Login or Registation with Google
-
-request example
-post {
-    "token_id": "token_id",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid"
-}
-
-response example
-{
-    "success": true,
-    "message": "Login Successful",
-    "data": {
-        "user_id": "89eb4658-a1a6-40d2-845a-835f5d8a14",
-        "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vy",
-        "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2",
-        "email_address": "david@gmail.com",
-        "phone_number": null
-    }
-}
-"""
 # ==============================================================================
 
 @auth_router.post("/google-login")
@@ -76,29 +51,6 @@ async def google_login(
 
 
 # ==============================================================================
-"""
-User login
-
-request example
-post {
-    "email_address": "david@gmail.com",
-    "phone_number": "null",
-    "country_code": "null",
-    "user_password": "user_password",
-    "device_id": "device_id",
-    "device_uuid": "device_uuid"
-}
-
-response example
-{
-    "success": true,
-    "message": "Please verify!",
-    "data": {
-        "method": "phone" or "email"
-    }
-}
-"""
-# ==============================================================================
 
 @auth_router.post("/login")
 async def login(
@@ -121,22 +73,6 @@ async def login(
     
 
 
-# ==============================================================================
-"""
-User logout
-request example
-post {
-    "user_id": "user_id",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid"
-}
-
-response example
-{
-    "success": true,
-    "message": "Logout successful",
-    "data": {}
-"""
 # ==============================================================================
 
 @auth_router.post("/logout")
@@ -202,6 +138,8 @@ async def register(
     return registrationService.register(payload=payload)
 
 
+
+
 @auth_router.post("/final-setup", response_model=GlobalResponse)
 async def final_setup(
     payload: FinalSetupRequest,
@@ -247,6 +185,7 @@ response example
 @auth_router.post("/send-otp", response_model=GlobalResponse)
 async def send_otp(
     payload: OTPRequest, 
+
     request: Request,
     background_tasks: BackgroundTasks,
     authorization: str = Header(None),
@@ -308,132 +247,6 @@ async def verify_otp(
     )
 
     return accountServices.verify_otp(payload=payload)
-
-
-
-
-# ==============================================================================
-"""
-Verify TOTP
-
-request example 
-post {
-    "user_id": "user_id",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid"
-}
-
-response example
-}
-"""
-# ==============================================================================
-
-@auth_router.post("/totp-setup")
-async def totp_setup(
-    payload: TOTPSetupRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.totp_setup(payload=payload)
-
-
-@auth_router.post("/totp-confirm")
-async def totp_confirm(
-    payload: TOTPConfirmRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.totp_confirm(payload=payload)
-
-
-@auth_router.post("/totp-disable")
-async def totp_disable(
-    payload: TOTPAuthDisableRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.totp_disable(payload=payload)
-
-
-@auth_router.post("/email-tfa-setup")
-async def email_tfa_setup(
-    payload: EmailTFASetupRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.email_setup(payload=payload)
-
-
-@auth_router.post("/email-tfa-confirm")
-async def email_tfa_confirm(
-    payload: EmailTFAConfirmRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.email_confirm(payload=payload)
-
-
-@auth_router.post("/email-tfa-disable")
-async def email_tfa_disable(
-    payload: EmailTFADisableRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.email_disable(payload=payload)
 
 
 

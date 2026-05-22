@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, E
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.enums.notification_enum import NotificationType
+from app.enums import NotificationType, NotificationCreator
 from app.utils.helpers import utc6dhaka
 
 
@@ -24,7 +24,7 @@ class NotificationTable(Base):
     read_at = Column(DateTime(timezone=True), nullable=True)
     is_read = Column(Boolean, default=False)
 
-    creator = Column(String, nullable=False, default="system")
+    creator = Column(Enum(NotificationCreator), default=NotificationCreator.SYSTEM)
     
     user = relationship(
         "UserTable",

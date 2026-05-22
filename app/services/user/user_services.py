@@ -8,7 +8,7 @@ from datetime import date, datetime
 from app.constants import AnsiColor, String, ENV
 from app.router.qr_router import ALLOWED_TYPES, MAX_SIZE
 from app.schema import GlobalResponse, KYCRequest
-from app.model import SessionTable, UserTable, SettingsTable, KYCTable
+from app.model import SessionTable, UserTable, SettingsTable, KYCTable, TwoFactorTable
 from app.utils import Helpers
 
 from app.services.auth.user_verification import UserVerificationService
@@ -69,6 +69,14 @@ class UserServices:
 
             # get session detals
             session = self.db.query(SessionTable).filter(SessionTable.user_id == user.user_id).first()
+            enabled_tfa_methods = self.db.query(TwoFactorTable).filter(
+                TwoFactorTable.user_id == user.user_id,
+                TwoFactorTable.is_enabled == True
+            ).all()
+            two_factor_methods = [
+                method.method_type.value if hasattr(method.method_type, "value") else str(method.method_type).lower()
+                for method in enabled_tfa_methods
+            ]
 
             return GlobalResponse(
                 success=True,
@@ -94,7 +102,9 @@ class UserServices:
                         "country": settings.country if settings else None,
                         "language": settings.language if settings else None,
 
-                        "totp_enabled": settings.two_factor_enabled if settings else None,
+                        "totp_enabled": "totp" in two_factor_methods,
+                        "two_factor_enabled": bool(two_factor_methods),
+                        "two_factor_methods": two_factor_methods,
                         "biometric_enabled": settings.biometric_enabled if settings else None,
                         "account_locked": settings.account_locked if settings else None,
 
@@ -374,6 +384,4 @@ class UserServices:
             print(f"{AnsiColor.RED}ERROR{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
             
-
-
 

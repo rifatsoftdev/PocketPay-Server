@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 
@@ -48,72 +48,6 @@ class RegisterRequest(BaseModel):
     referral_account: Optional[str] = None
     device_id: str
     device_uuid: str
-
-
-# Schemas for OTP Resend Request
-class OTPRequest(BaseModel):
-    method: str
-    delever_to: str
-    device_id: str
-    device_uuid: str
-
-
-# Schemas for OTP Verification
-class VerifyOTPRequest(BaseModel):
-    method: str
-    delever_to: str
-    otp: str
-    otp_token: str
-    device_id: str
-    device_uuid: str
-
-
-# TOTP activation
-class TOTPSetupRequest(BaseModel):
-    user_id: str
-    access_token: str
-    device_id: str
-    device_uuid: str
-
-
-class TOTPConfirmRequest(BaseModel):
-    user_id: str
-    access_token: str
-    device_id: str
-    device_uuid: str
-    totp_code: str
-
-
-class TOTPAuthDisableRequest(BaseModel):
-    user_id: str
-    access_token: str
-    device_id: str
-    device_uuid: str
-    user_password: str
-
-
-class EmailTFASetupRequest(BaseModel):
-    user_id: str
-    access_token: str
-    device_id: str
-    device_uuid: str
-
-
-class EmailTFAConfirmRequest(BaseModel):
-    user_id: str
-    access_token: str
-    device_id: str
-    device_uuid: str
-    otp: str
-    otp_token: str
-
-
-class EmailTFADisableRequest(BaseModel):
-    user_id: str
-    access_token: str
-    device_id: str
-    device_uuid: str
-    user_password: str
 
 
 
