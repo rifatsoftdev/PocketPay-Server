@@ -84,6 +84,12 @@ class UserTable(Base):
         cascade="all, delete-orphan"
     )
 
+    two_factor = relationship(
+        "TwoFactorTable",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
     # KYC relationship for one-to-one mapping between user and kyc
     user_kyc = relationship(
         "KYCTable",

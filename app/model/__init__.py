@@ -16,6 +16,7 @@ from app.model.password_reset_table import ResetPasswordTable
 from app.model.sessions_table import SessionTable
 from app.model.settings_table import SettingsTable
 from app.model.transaction_table import TransactionTable
+from app.model.two_factor_table import TwoFactorTable
 from app.model.user_kyc_table import KYCTable
 from app.model.user_table import UserTable
 from app.model.wallet_table import WalletTable

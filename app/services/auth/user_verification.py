@@ -49,6 +49,26 @@ class UserVerificationService(TokenGenerators):
 
         return payload.get("user_id") or payload.get("admin_id")
     
+    def verify_app_token(self, access_token: str, advanced: bool = False):
+        payload = self._decode_token(access_token)
+
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid App Token"
+            )
+
+        if (payload.get("type") != "app"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=String.INVALID_TOKEN_TYPE
+            )
+
+        # if payload.get("user_id") != user_id:
+        #     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=String.INVALID_TOKEN)
+        
+        return payload.get("app_id")
+
     def verify_authorization(self, authorization: str, advanced: bool = False) -> str:
         if not authorization:
             raise HTTPException(

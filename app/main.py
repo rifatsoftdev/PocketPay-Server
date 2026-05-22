@@ -8,6 +8,7 @@ from pathlib import Path
 from app.core.database import SessionLocal
 from app.constants import ENV
 from app.schema.global_schema import GlobalResponse
+from app.middleware.auth_middleware import AuthMiddleware
 
 from admin.router.auth_router import admin_auth_router
 from admin.router.access_router import admin_access_router
@@ -32,8 +33,7 @@ from app.services.setup.setup_services import SetupServices
 
 
 
-
-# create api
+# create FastAPI
 app = FastAPI(
     title="PocketPay API",
     description="A complete digital wallet and payment solution",
@@ -49,9 +49,31 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+app.add_middleware(
+    AuthMiddleware,
+    public_paths=[
+        "/country/counties",
+    ],
+    protected_prefixes=[
+        "/bank",
+        "/bill",
+        "/country",
+        "/dev",
+        "/donation",
+        "/history",
+        "/offer",
+        "/qr",
+        "/recharge",
+        "/user",
+        "/wallet",
+    ]
+)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 TMP_DIR = Path("uploads/tmp")
+
+
 
 
 @app.on_event("startup")
@@ -65,14 +87,14 @@ def create_default_admin_on_startup():
             authorization=None
         )
 
-        if all([ENV.ADMIN_EMAIL, ENV.ADMIN_PASSWORD, ENV.ADMIN_NAME]):
+        if all([ENV.DEFAULT_ADMIN_EMAIL, ENV.DEFAULT_ADMIN_PASSWORD, ENV.DEFAULT_ADMIN_NAME]):
             setupServices.create_default_admin(
-                email=ENV.ADMIN_EMAIL,
-                password=ENV.ADMIN_PASSWORD,
-                full_name=ENV.ADMIN_NAME
+                email=ENV.DEFAULT_ADMIN_EMAIL,
+                password=ENV.DEFAULT_ADMIN_PASSWORD,
+                full_name=ENV.DEFAULT_ADMIN_NAME
             )
         else:
-            print("Default admin skipped: ADMIN_EMAIL, ADMIN_PASSWORD, or ADMIN_NAME is missing.")
+            print("Default admin skipped: DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD, or DEFAULT_ADMIN_NAME is missing.")
 
         setupServices.add_default_countries()
 
@@ -86,6 +108,8 @@ def create_default_admin_on_startup():
 
     finally:
         db.close()
+
+
 
 
 @app.on_event("shutdown")
@@ -106,6 +130,8 @@ async def custom_404_handler(request: Request, exc: HTTPException):
     )
 
 
+
+
 # Custom exception handlers
 @app.exception_handler(Exception)
 async def server_exception_handler(request: Request, exc: Exception):
@@ -113,6 +139,7 @@ async def server_exception_handler(request: Request, exc: Exception):
         content=templates.get_template("500.html").render(request=request, message=str(exc)),
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
     )
+
 
 
 
@@ -135,6 +162,8 @@ async def root(
             "description": "A complete digital wallet and payment solution"
         }
     )
+
+
 
 
 @app.get("/favicon.ico", include_in_schema=False)

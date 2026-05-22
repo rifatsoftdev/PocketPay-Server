@@ -30,10 +30,15 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
         request: Request,
         authorization: str
     ):
-        self.db = db
-        self.background_tasks = background_tasks
-        self.request = request
-        self.authorization = authorization
+        OTPService.__init__(
+            self,
+            db=db,
+            background_tasks=background_tasks,
+            request=request,
+            authorization=authorization
+        )
+        UserRepository.__init__(self, db)
+        TokenGenerators.__init__(self, db)
 
     def login(
         self, 
@@ -46,9 +51,6 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             user_password: str = payload.user_password
             device_id: str = payload.device_id
             device_uuid: str = payload.device_uuid
-
-            for i, j in payload:
-                print(f"{i} => {j}")
             
             # Request info
             ip: str = self.request.client.host
@@ -579,6 +581,5 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
 
 

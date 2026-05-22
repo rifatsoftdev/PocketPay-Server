@@ -76,12 +76,14 @@ SALT=change-this-salt
 SERVICE_ACCOUNT_PATH=path/to/firebase-service-account.json
 
 # Default Admin Credentials
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=admin-password
-ADMIN_NAME=Admin
+DEFAULT_ADMIN_EMAIL=admin@example.com
+DEFAULT_ADMIN_PHONE=+8801000000000
+DEFAULT_ADMIN_PASSWORD=admin-password
+DEFAULT_ADMIN_NAME=Admin
 
 # Default Test User Credentials
 DEFAULT_USER_EMAIL=user@example.com
+DEFAULT_USER_PHONE=+8801000000001
 DEFAULT_USER_PASSWORD=user-password
 DEFAULT_USER_NAME=User
 EOF

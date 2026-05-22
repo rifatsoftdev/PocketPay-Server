@@ -1,18 +1,24 @@
 # PocketPay Server
 
-PocketPay Server is a FastAPI backend for a digital wallet and payment platform. It provides user authentication, wallet balance management, peer-to-peer transfers, mobile recharge, bill payments, donations, QR generation, notifications, and an admin dashboard.
+PocketPay Server is a FastAPI backend for a digital wallet and payment platform. It brings together authentication, wallet operations, peer-to-peer transfers, mobile recharge, bill payments, donations, bank transfers, QR generation, real-time notifications, offers, KYC flows, and an admin dashboard in one API-first project.
 
-## Features
+![PocketPay](public/PocketPay.png)
 
-- User registration, login, logout, password reset, OTP verification, and token refresh
-- JWT-based authentication with optional two-factor authentication flows
-- Wallet balance lookup, send money, and transaction detail APIs
-- Mobile recharge operator management and recharge processing
-- Bill provider listing and bill payment processing
-- Donation organization listing and donation request workflows
-- Transaction history and notification APIs
-- QR code generation for payment-related flows
-- Admin dashboard for users, wallets, transactions, refunds, notifications, and admin management
+## Highlights
+
+- Complete wallet backend with balance lookup, send money, transaction details, and service charges
+- Secure authentication with JWT access/refresh tokens, Google login, OTP verification, password reset, and optional two-factor authentication
+- Payment services for mobile recharge, utility bills, donations, pocket-to-bank, and bank-to-pocket flows
+- Admin dashboard for users, wallets, transactions, refunds/cancellations, KYC requests, offers, notifications, and admin management
+- Real-time notification support with WebSocket endpoints and Firebase Cloud Messaging token handling
+- Cloudinary-based profile image upload support
+- Docker and setup script included for faster local onboarding
+
+## Screenshots
+
+| Admin Dashboard | User Management | Transactions |
+| --- | --- | --- |
+| ![Admin dashboard](public/Screenshot_20260515_164250.png) | ![User management](public/Screenshot_20260515_164237.png) | ![Transactions](public/Screenshot_20260515_164658.png) |
 
 ## Tech Stack
 
@@ -22,8 +28,11 @@ PocketPay Server is a FastAPI backend for a digital wallet and payment platform.
 - **Pydantic** for request and response validation
 - **python-jose** for JWT handling
 - **Passlib bcrypt** for password hashing
-- **Jinja2 templates** and static assets for the admin dashboard
-- **Cloudinary** support for image uploads
+- **PyOTP** for TOTP-based two-factor authentication
+- **Firebase Admin SDK** for push-notification integration
+- **Jinja2 templates** and Bootstrap assets for the admin dashboard
+- **Cloudinary** for image uploads
+- **Docker** for containerized setup
 
 ## Project Structure
 
@@ -33,18 +42,20 @@ PocketPay-Server/
 |-- app/
 |   |-- constants/         # Environment and shared constants
 |   |-- core/              # Database configuration
+|   |-- dependencies/      # Shared FastAPI dependencies
+|   |-- middleware/        # Authentication middleware
 |   |-- model/             # SQLAlchemy models
 |   |-- router/            # API route modules
 |   |-- schema/            # Pydantic schemas
 |   |-- services/          # Business logic
 |   |-- templates/         # Email, SMS, and push templates
 |   `-- utils/             # Auth, hashing, notification, and helper utilities
+|-- public/                # Project images and screenshots
 |-- static/                # Admin dashboard static files
 |-- templates/             # Admin dashboard HTML templates
 |-- Dockerfile             # Docker configuration
-|-- LICENSE                # License file
-|-- .env                   # Environment variables (not in git)
-|-- .gitignore             # Git ignore file
+|-- docker-compose.yml     # Docker Compose service definition
+|-- setup.sh               # Automated local setup script
 |-- run.py                 # Local development runner
 |-- requirements.txt       # Python dependencies
 `-- README.md
@@ -57,37 +68,34 @@ PocketPay-Server/
 - Python 3.10 or newer
 - `pip`
 - A virtual environment tool such as `venv`
+- Docker and Docker Compose, if you prefer containerized setup
 
-> Note: This project is designed for Python 3.10. If you want to avoid compatibility issues on your machine, using Docker is the recommended way to run the app. If Docker is not available, you can still run the project normally with Python 3.10 installed.
+> This project is designed for Python 3.10+. Docker is the easiest way to avoid local environment differences.
 
 ### Quick Start with Setup Script
-
-The easiest way to set up PocketPay Server is using the automated setup script:
 
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-The setup script will:
-- Create a `.env` file with all required configuration variables
-- Offer to setup with Docker (recommended) or manually with Python
-- For Docker: Build and run the application in a container
-- For Manual: Create a virtual environment, install dependencies, and guide you to run the app
+The setup script can create a `.env` file, install dependencies, and guide you through either Docker or manual setup.
 
-### Docker Setup (Recommended)
+### Docker Setup
 
-If you prefer Docker without the setup script:
+```bash
+docker compose up -d
+```
+
+If your machine uses the older Compose CLI, use:
 
 ```bash
 docker-compose up -d
 ```
 
-This starts the PocketPay Server with all environment variables configured. The app will be available at `http://localhost:8000`.
+The app will be available at `http://localhost:8000`.
 
-### Installation
-
-#### Manual Installation (If not using setup script or Docker)
+### Manual Installation
 
 1. Clone the repository:
 
@@ -96,7 +104,7 @@ This starts the PocketPay Server with all environment variables configured. The 
    cd PocketPay-Server
    ```
 
-2. Create a `.env` file in the project root with the following configuration:
+2. Create a `.env` file in the project root:
 
    ```env
    # Database Configuration
@@ -125,7 +133,7 @@ This starts the PocketPay Server with all environment variables configured. The 
    OTP_TOKEN_EXPIRE_MIN=5
    PASS_RST_TOKEN_EXPIRE_MIN=15
 
-   # User Rewards Configuration
+   # Rewards and Service Charge
    NEW_USER_REWARD_WITH_REFERRAL=0
    NEW_USER_REWARD_WITH_NO_REFERRAL=0
    USER_REFERRAL_REWARD=0
@@ -135,31 +143,39 @@ This starts the PocketPay Server with all environment variables configured. The 
    VERSION=1.0.0
    DEBUG=True
 
-   # Cloudinary (Image Upload)
+   # Cloudinary
    CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
    CLOUDINARY_API_KEY=your-cloudinary-api-key
    CLOUDINARY_API_SECRET=your-cloudinary-api-secret
 
-   # Security
+   # Security and Firebase
    SALT=change-this-salt
    SERVICE_ACCOUNT_PATH=path/to/firebase-service-account.json
 
    # Default Admin Credentials
-   ADMIN_EMAIL=admin@example.com
-   ADMIN_PASSWORD=admin-password
-   ADMIN_NAME=Admin
+   DEFAULT_ADMIN_EMAIL=admin@example.com
+   DEFAULT_ADMIN_PHONE=+8801000000000
+   DEFAULT_ADMIN_PASSWORD=admin-password
+   DEFAULT_ADMIN_NAME=Admin
 
    # Default Test User Credentials
    DEFAULT_USER_EMAIL=user@example.com
+   DEFAULT_USER_PHONE=+8801000000001
    DEFAULT_USER_PASSWORD=user-password
    DEFAULT_USER_NAME=User
    ```
 
-3. Create a virtual environment:
+3. Create and activate a virtual environment:
 
    ```bash
    python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate
+   ```
+
+   On Windows:
+
+   ```bash
+   venv\Scripts\activate
    ```
 
 4. Install dependencies:
@@ -180,29 +196,39 @@ This starts the PocketPay Server with all environment variables configured. The 
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-
 ## API Documentation
 
 After starting the server, open:
 
 - Swagger UI: `http://localhost:8000/docs`
 - Admin login: `http://localhost:8000/admin/login`
+- Terms and conditions: `http://localhost:8000/terms-and-conditions`
 
 ## Main API Routes
 
 ### Authentication
 
 - `POST /auth/register`
+- `POST /auth/final-setup`
 - `POST /auth/login`
 - `POST /auth/google-login`
+- `POST /auth/link-google`
 - `POST /auth/logout`
+- `POST /auth/logout-all`
 - `POST /auth/new-access-token`
 - `POST /auth/send-otp`
 - `POST /auth/verify-otp`
 - `POST /auth/reset-password`
+- `GET /auth/reset-password/{password_token}`
 - `POST /auth/set-password`
 - `POST /auth/change-password`
-- `POST /auth/logout-all`
+- `POST /auth/totp-setup`
+- `POST /auth/totp-confirm`
+- `POST /auth/totp-disable`
+- `POST /auth/email-tfa-setup`
+- `POST /auth/email-tfa-confirm`
+- `POST /auth/email-tfa-disable`
+- `POST /auth/send-fcm-token`
 - `POST /auth/delete-account`
 - `POST /auth/cancel-delete`
 
@@ -212,17 +238,25 @@ After starting the server, open:
 - `GET /user/edit-info`
 - `POST /user/profile/update`
 - `POST /user/image-upload`
+- `POST /user/kyc/submit`
 
 ### Wallet
 
 - `GET /wallet/balance`
 - `POST /wallet/sent-money`
-- `GET /wallet/transaction/{transaction_id}`
+- `GET /wallet/transaction-details/{transaction_id}`
 
-### Transaction History
+### Bank
+
+- `GET /bank/banks`
+- `POST /bank/pocket2bank`
+- `POST /bank/bank2pocket`
+
+### Transaction History and Notifications
 
 - `GET /history/all-transactions`
 - `POST /history/all-notifications`
+- `WebSocket /ws/notify/{user_id}`
 
 ### Mobile Recharge
 
@@ -230,6 +264,7 @@ After starting the server, open:
 - `POST /recharge/recharge`
 - `POST /recharge/new-operator`
 - `POST /recharge/deactivate-operator`
+- `POST /recharge/activate-operator`
 
 ### Bill Payment
 
@@ -242,27 +277,57 @@ After starting the server, open:
 
 - `GET /donation/organization`
 - `POST /donation/donate`
-- `POST /donation/organization-request`
-- `POST /donation/organization-remove-request`
+- `POST /donation/new-organization`
+- `POST /donation/remove-organization`
+- `PUT /donation/organization-edit/{organization_id}`
 
 ### Countries and QR
 
 - `GET /country/counties`
-- `POST /country/new-country`
+- `POST /country/add-new-country`
+- `PUT /country/country-edit/{country_id}`
+- `POST /country/inactive-country`
+- `POST /country/active-country`
 - `POST /qr/generate-qr`
+
+### Offers
+
+- `GET /offer/offers`
+- `GET /offer/offers/{offer_id}`
+- `POST /offer/add-offer`
+- `PUT /offer/edit-offer`
+- `DELETE /offer/delete-offer/{offer_id}`
+
+### Developer Payment
+
+- `POST /dev/make-payment`
+- `WebSocket /dev/connect/{user_id}`
+- `POST /dev/request-developer`
+- `POST /dev/cancel-developer`
 
 ### Admin
 
-- `GET /admin/dashboard/stats`
-- `GET /admin/users-list`
-- `GET /admin/transactions-list`
-- `GET /admin/wallets-list`
 - `POST /admin/login`
 - `POST /admin/logout`
+- `POST /admin/refresh`
 - `GET /admin/profile-data`
 - `PUT /admin/profile`
 - `POST /admin/create`
 - `GET /admin/list`
+- `PUT /admin/{admin_id}`
+- `POST /admin/{admin_id}/reset-password`
+- `DELETE /admin/{admin_id}`
+- `POST /admin/change-password`
+- `GET /admin/dashboard/stats`
+- `GET /admin/users-list`
+- `GET /admin/transactions-list`
+- `GET /admin/transactions/{transaction_id}`
+- `POST /admin/transactions/{transaction_id}/cancel`
+- `GET /admin/wallets-list`
+- `GET /admin/list-kyc-request`
+- `GET /admin/kyc-request-details/{user_id}`
+- `POST /admin/update-kyc-request`
+- `POST /admin/users/{user_id}/notify`
 
 ## Response Format
 
@@ -287,7 +352,7 @@ The project currently uses SQLite for local development:
 sqlite:///./pocketpay.db
 ```
 
-Tables are created automatically when the application imports the database module. For production, configure a production-grade database and migration process before deployment.
+Tables are created automatically when the application starts. For production, configure a production database and a migration workflow before deployment.
 
 ## Security Notes
 
@@ -297,6 +362,7 @@ Tables are created automatically when the application imports the database modul
 - Use HTTPS in production.
 - Rotate `SECRET_KEY` and provider credentials if they are ever exposed.
 
+## Testing
 
 Tests are not fully configured yet. Add project tests under `test/` and run them with your preferred test runner.
 
@@ -313,16 +379,13 @@ Tests are not fully configured yet. Add project tests under `test/` and run them
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
-
-## 📫 Contact
+## Contact
 
 Feel free to connect with me:
 
-- 📧 **Email:** rifatsoft.dev@gmail.com
-- 🔗 **GitHub:** [rifatsoftdev](https://github.com/rifatsoftdev)
-- 🔗 **Portfolio:** [rifatsoftdev](https://rifatsoftdev.netlify.app/)
-- 🔗 **LinkedIn:** [Md Rifat Rahman](https://www.linkedin.com/in/rifatsoftdev/)
-- 🔗 **Instagram:** [@rifatsoftdev](https://www.instagram.com/rifatsoftdev/)
-- 🔗 **LeetCode:** [@rifatsoftdev](https://leetcode.com/u/rifatsoftdev/)
-
----
+- Email: rifatsoft.dev@gmail.com
+- GitHub: [rifatsoftdev](https://github.com/rifatsoftdev)
+- Portfolio: [rifatsoftdev](https://rifatsoftdev.netlify.app/)
+- LinkedIn: [Md Rifat Rahman](https://www.linkedin.com/in/rifatsoftdev/)
+- Instagram: [@rifatsoftdev](https://www.instagram.com/rifatsoftdev/)
+- LeetCode: [@rifatsoftdev](https://leetcode.com/u/rifatsoftdev/)
