@@ -11,14 +11,15 @@ from app.schema import (
     GlobalResponse, CancelDeleteAccountRequest, DeleteAccountRequest, LoginRequest,
     LogoutRequest, LogoutAllRequest, FCMTokenRequest, AccessTokenRequest
 )
-from app.utils import Hashing, Helpers, Token
+from app.utils import Hashing, Helpers
 
 from app.services.auth.user_verification import UserVerificationService
 from app.services.auth.otp_service import OTPService
 
 from app.services.auth.user_repository import UserRepository
-from app.utils.notification_manager import NotificationManager
 from app.services.auth.token_service import TokenGenerators
+
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 
 
 

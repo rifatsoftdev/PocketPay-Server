@@ -16,6 +16,34 @@
     .btn-adjust { color: var(--primary-color, #4361ee); border: 1px solid var(--primary-color, #4361ee); transition: all 0.2s; }
     .btn-adjust:hover { background: var(--primary-color, #4361ee); color: white; }
     .card { border: none; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); background: white; }
+    #adjustModal.modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1060;
+        display: none;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: transparent;
+        border-radius: 0;
+        outline: 0;
+        transform: none;
+        visibility: visible;
+    }
+    #adjustModal.modal.show {
+        display: block;
+        transform: none;
+    }
+    #adjustModal .modal-dialog {
+        pointer-events: auto;
+    }
+    .modal-backdrop {
+        z-index: 1050;
+    }
 </style>
 {% endblock %}
 
@@ -107,6 +135,7 @@
 {% block extra_js %}
 <script>
     let searchTimer;
+    let adjustModal;
     function debounceSearch() { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadWallets(1), 400); }
 
     async function loadWallets(page) {
@@ -153,7 +182,19 @@
     function openAdjustModal(id, name) {
         document.getElementById('adjust-user-id').value = id;
         document.getElementById('modal-user-name').innerText = name;
-        new bootstrap.Modal(document.getElementById('adjustModal')).show();
+        cleanupModalState();
+        adjustModal.show();
+    }
+
+    function closeAdjustModal() {
+        adjustModal.hide();
+    }
+
+    function cleanupModalState() {
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
     }
 
     async function processAdjustment() {
@@ -175,7 +216,7 @@
             const res = await resp.json();
             btn.disabled = false; btn.innerText = 'Apply Adjustment';
             if (res.success) { 
-                bootstrap.Modal.getInstance(document.getElementById('adjustModal')).hide(); 
+                closeAdjustModal();
                 loadWallets(1); 
                 alert("Balance adjusted successfully");
             }
@@ -186,6 +227,11 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => loadWallets(1));
+    document.addEventListener('DOMContentLoaded', () => {
+        const adjustModalEl = document.getElementById('adjustModal');
+        adjustModal = new bootstrap.Modal(adjustModalEl);
+        adjustModalEl.addEventListener('hidden.bs.modal', cleanupModalState);
+        loadWallets(1);
+    });
 </script>
 {% endblock %}

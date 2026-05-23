@@ -2,7 +2,7 @@
 
 PocketPay Server is a FastAPI backend for a digital wallet and payment platform. It brings together authentication, wallet operations, peer-to-peer transfers, mobile recharge, bill payments, donations, bank transfers, QR generation, real-time notifications, offers, KYC flows, and an admin dashboard in one API-first project.
 
-![PocketPay](public/PocketPay.png)
+<!-- ![PocketPay](public/PocketPay.png) -->
 
 ## Highlights
 
@@ -19,6 +19,7 @@ PocketPay Server is a FastAPI backend for a digital wallet and payment platform.
 | Admin Dashboard | User Management | Transactions |
 | --- | --- | --- |
 | ![Admin dashboard](public/Screenshot_20260515_164250.png) | ![User management](public/Screenshot_20260515_164237.png) | ![Transactions](public/Screenshot_20260515_164658.png) |
+| ![API Request](public/Screenshot_20260510_231104.png) | ![Admin Login](public/Screenshot_20260515_164314.png) | ![Country Management](public/Screenshot_20260515_164250.png) |
 
 ## Tech Stack
 

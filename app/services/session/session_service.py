@@ -20,7 +20,7 @@ class SessionService:
         try:
             session = db.query(SessionTable).filter(
                 SessionTable.user_id == user_id,
-                SessionTable.android_id == android_id,
+                SessionTable.device_id == android_id,
                 SessionTable.device_uuid == uuid,
                 SessionTable.is_login == True
             ).first()
@@ -45,7 +45,7 @@ class SessionService:
         try:
             session = db.query(SessionTable).filter(
                 SessionTable.user_id == user_id,
-                SessionTable.android_id == android_id,
+                SessionTable.device_id == android_id,
                 SessionTable.device_uuid == uuid,
                 SessionTable.is_login == True
             ).first()
@@ -78,7 +78,7 @@ class SessionService:
         try:
             return db.query(SessionTable).filter(
                 SessionTable.user_id == user_id,
-                SessionTable.android_id == android_id,
+                SessionTable.device_id == android_id,
                 SessionTable.device_uuid == uuid,
                 SessionTable.is_login == True
             ).first()
@@ -101,7 +101,7 @@ class SessionService:
         try:
             session = db.query(SessionTable).filter(
                 SessionTable.user_id == user_id,
-                SessionTable.android_id == android_id,
+                SessionTable.device_id == android_id,
                 SessionTable.device_uuid == uuid,
                 SessionTable.is_login == True
             ).first()

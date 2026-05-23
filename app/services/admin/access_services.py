@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 
 
 from app.constants import AnsiColor, String
-from app.enums import NotificationType, TransactionStatus, KYCStatus
+from app.enums import NotificationType, NotificationCreator, TransactionStatus, KYCStatus
 from app.model import (
     DeletedUserTable, NotificationTable, SettingsTable,
     AdminTable, UserTable, TransactionTable, WalletTable, KYCTable
@@ -20,6 +20,7 @@ from admin.schema.admin_schema import *
 
 from app.model.admin_table import AdminRole
 from app.services.auth.user_verification import UserVerificationService
+from app.services.notification.noticication_services import NotificationData, NotificationServices
 from app.schema.auth_schemas import DeleteAccountRequest
 from app.services.auth.user_verification import UserVerificationService
 
@@ -575,31 +576,69 @@ class AdminAccessServices(UserVerificationService):
             ).first()
 
             if not kyc_record:
-                raise HTTPException(status_code=404, detail="KYC record not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="KYC record not found"
+                )
 
             try:
                 new_status = KYCStatus(payload.kyc_status)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid KYC status")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid KYC status"
+                )
 
             if new_status == KYCStatus.REJECTED and not payload.rejection_reason:
-                raise HTTPException(status_code=400, detail="Rejection reason is required")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Rejection reason is required"
+                )
 
             # Update KYC status
             kyc_record.kyc_status = new_status
             kyc_record.rejection_reason = payload.rejection_reason if new_status == KYCStatus.REJECTED else None
             kyc_record.updated_at = datetime.now(timezone.utc)
 
+            notification_title = "KYC Verification Update"
+            notification_body = (
+                f"Your KYC verification has been {new_status.value}. "
+                + (f"Reason: {payload.rejection_reason}" if payload.rejection_reason else "")
+            )
+
             # Create notification for the user
             notification = NotificationTable(
                 target_id=payload.user_id,
                 type=NotificationType.ALERT,
-                title="KYC Verification Update",
-                body=f"Your KYC verification has been {new_status.value}. " + 
-                     (f"Reason: {payload.rejection_reason}" if payload.rejection_reason else ""),
-                creator="SYSTEM_ADMIN"
+                title=notification_title,
+                body=notification_body,
+                creator=NotificationCreator.ADMIN
             )
             self.db.add(notification)
+
+            try:
+                notification_service = NotificationServices(
+                    db=self.db,
+                    background_tasks=self.background_tasks
+                )
+                notification_service.send_notification(
+                    NotificationData(
+                        user_id=payload.user_id,
+                        title=notification_title,
+                        body=notification_body,
+                        noty_type=NotificationType.ALERT,
+                        data={
+                            "kyc_status": new_status.value,
+                            "rejection_reason": payload.rejection_reason,
+                        },
+                        push=True,
+                        email=False,
+                        sms=False
+                    )
+                )
+            except Exception as e:
+                print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     KYC notification failed: {e}")
+
             self.db.commit()
 
             return GlobalResponse(
@@ -619,24 +658,35 @@ class AdminAccessServices(UserVerificationService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
-    def notify_user(self, payload: AdminNotyfyResuest):
+
+    def notify_user(self, user_id: str, payload: AdminNotyfyResuest):
         try:
+            target_user_id = user_id or payload.user_id
+            notification_type = payload.notification_type or payload.type or NotificationType.ALERT
+            notification_body = payload.message or payload.body
+
+            if not target_user_id:
+                raise HTTPException(status_code=400, detail="User ID is required")
+
+            if not notification_body:
+                raise HTTPException(status_code=400, detail="Notification message is required")
+
             user = self.db.query(UserTable).filter(
-                UserTable.user_id == payload.user_id
+                UserTable.user_id == target_user_id
             ).first()
             
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
 
             settings: SettingsTable = user.settings
-            push_allowed = self.request.send_push and (settings.allow_notifications if settings else True)
+            push_allowed = payload.send_push and (settings.allow_notifications if settings else True)
 
             # Store notification in DB
             notification = NotificationTable(
-                target_id=payload.user_id,
-                type=payload.notification_type,
+                target_id=target_user_id,
+                type=notification_type,
                 title=payload.title,
-                body=payload.body,
+                body=notification_body,
                 img_url=payload.image_url,
                 meta_data={
                     "button_text": payload.button_text,
@@ -645,35 +695,40 @@ class AdminAccessServices(UserVerificationService):
                     "send_email": payload.send_email,
                     "send_sms": payload.send_sms,
                 },
-                creator=payload.admin_id
+                creator=NotificationCreator.ADMIN
             )
             self.db.add(notification)
             self.db.commit()
 
-            notification_service = NotificationServices(
-                db=self.db,
-                background_tasks=background_tasks
-            )
-            notification_service.send_notification(NotificationData(
-                user_id=user_id,
-                title=request.title,
-                body=request.message,
-                noty_type=request.notification_type,
-                data={
-                    "button_text": request.button_text,
-                    "button_link": request.button_link,
-                },
-                image_url=request.image_url,
-                push=push_allowed,
-                email=request.send_email,
-                sms=request.send_sms
-            ))
+            try:
+                notification_service = NotificationServices(
+                    db=self.db,
+                    background_tasks=self.background_tasks
+                )
+                notification_service.send_notification(
+                    NotificationData(
+                        user_id=target_user_id,
+                        title=payload.title,
+                        body=notification_body,
+                        noty_type=notification_type,
+                        data={
+                            "button_text": payload.button_text,
+                            "button_link": payload.button_link,
+                        },
+                        image_url=payload.image_url,
+                        push=push_allowed,
+                        email=payload.send_email,
+                        sms=payload.send_sms
+                    )
+                )
+            except Exception as e:
+                print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Admin notification delivery failed: {e}")
 
             return GlobalResponse(
                 success=True,
                 message="Notification queued successfully",
                 data={
-                    "user_id": payload.user_id,
+                    "user_id": target_user_id,
                     "title": payload.title,
                     "send_push": push_allowed,
                     "send_email": payload.send_email,
@@ -685,9 +740,7 @@ class AdminAccessServices(UserVerificationService):
             raise
         
         except Exception as e:
+            self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
-
-
-
 

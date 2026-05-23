@@ -10,7 +10,7 @@ from app.model import DevTable, UserTable, WalletTable, TransactionTable
 from app.utils import Generators, Helpers
 
 from app.services.auth.user_verification import UserVerificationService
-from app.utils.notification_manager import NotificationManager
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 
 
 class HistoryServices:

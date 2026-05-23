@@ -10,7 +10,7 @@ from app.schema.global_schema import GlobalResponse
 
 from app.utils.generators import Generators
 from app.services.auth.user_verification import UserVerificationService
-from app.utils.notification_manager import NotificationManager
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 from app.services import RechargeServices
 from app.services.wallet.wallet_service import WalletService
 

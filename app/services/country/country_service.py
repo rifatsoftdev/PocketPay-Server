@@ -5,14 +5,15 @@ from app.constants import AnsiColor, String
 from app.model import CountryTable, AdminTable, AdminSessionTable
 from app.enums import ActivityStatus, NotificationType
 from app.schema import CountryOut, NewCountryRequest, GlobalResponse, DisableCountryRequest
-from app.utils import Generators, Hashing, Token
+from app.services.auth.token_service import TokenGenerators
+from app.utils import Generators, Hashing
 
 from app.services.auth.user_verification import UserVerificationService
 
-from app.utils.notification_manager import NotificationManager
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 
 
-class CountryService:
+class CountryService(TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -27,7 +28,7 @@ class CountryService:
 
     def _verify_requester(self, payload):
         access_token = payload.access_token
-        token_payload = Token().decode_token(access_token)
+        token_payload = self._decode_token(access_token)
 
         if not token_payload or token_payload.get("type") != "access":
             raise HTTPException(
@@ -190,19 +191,18 @@ class CountryService:
 
             # real time notification
             if user:
-                notifier = NotificationManager(self.db)
+                notificationServices = NotificationServices(
+                    db=self.db,
+                    background_tasks=self.background_tasks
+                )
 
-                notifier.send_user_notification(
-                    background_tasks=self.background_tasks,
-                    user_id=user.user_id,
-                    title="New Country Added Request Received",
-                    short_body=f"You have requested to become a New Country. The request was successful. Wait for your Country ID {country.counrty_id} account to be activated.",
-                    long_body=None,
-                    noty_type=NotificationType.REQUEST,
-                    image_url=None,
-                    push=True,
-                    sms=False,
-                    email=False
+                notificationServices.send_notification(
+                    NotificationData(
+                        user_id=user.user_id,
+                        title="New Country Added Request Received",
+                        body=f"Your request to add {name} has been received and is being processed.",
+                        noty_type=NotificationType.REQUEST
+                    )
                 )
 
             self.db.commit()

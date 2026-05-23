@@ -14,7 +14,8 @@ from app.schema import GlobalResponse
 
 settings_router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-admin_auth = AdminAuth()
+admin_auth = AdminAuth(db=None) # Initialize with None, will be used in dependencies
+
 
 
 @settings_router.get("", response_class=HTMLResponse)

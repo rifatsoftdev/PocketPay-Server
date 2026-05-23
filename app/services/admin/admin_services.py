@@ -12,7 +12,7 @@ from app.utils import Helpers, Generators, Hashing
 
 from app.model.admin_table import AdminTable, AdminRole, ROLE_PERMISSIONS, AdminPermissions
 
-from app.model import AdminSessionTable
+from app.model import AdminSessionTable, UserTable, WalletTable, KYCTable
 from app.services.auth.user_verification import UserVerificationService
 from app.schema.auth_schemas import DeleteAccountRequest
 from app.services.auth.user_verification import UserVerificationService
@@ -20,7 +20,6 @@ from app.services.auth.user_verification import UserVerificationService
 from admin.schema.admin_schema import *
 from app.services.auth.token_service import TokenGenerators
 
-from app.utils import Token
 
 
 class AdminManagementServices(UserVerificationService, TokenGenerators):
@@ -239,6 +238,12 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 AdminTable.admin_id == admin_id
             ).first()
 
+            if (not current_admin):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid Admin"
+                )
+
             return GlobalResponse(
                 success=True,
                 message="Profile retrieved successfully",
@@ -276,8 +281,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 raise HTTPException(status_code=400, detail="Refresh token is required")
 
             # Decode the refresh token
-            token_service = Token()
-            payload = token_service.decode_token(refresh_token)
+            payload = self._decode_token(refresh_token)
             
             if not payload:
                 raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
@@ -315,7 +319,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             permissions = ROLE_PERMISSIONS.get(AdminRole(admin.role), [])
 
             # Generate new tokens
-            access_token = token_service.create_access_token(data={
+            access_token = self._create_access_token(data={
                 "admin_id": admin.admin_id,
                 "email": admin.email,
                 "role": admin.role,
@@ -324,7 +328,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 "device_uuid": device_uuid or payload.get("device_uuid")
             })
 
-            new_refresh_token = token_service.create_refresh_token(data={
+            new_refresh_token = self._create_refresh_token(data={
                 "admin_id": admin.admin_id,
                 "email": admin.email,
                 "role": admin.role,
@@ -338,14 +342,35 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             session.refresh_token_hash = Hashing.create_hash(new_refresh_token)
             self.db.commit()
 
-            return GlobalResponse(
-                success=True,
-                message="Token refreshed successfully",
-                data={
-                    "access_token": access_token,
-                    "refresh_token": new_refresh_token
+            response = JSONResponse(
+                content={
+                    "success": True,
+                    "message": "Token refreshed successfully",
+                    "data": {
+                        "access_token": access_token,
+                        "refresh_token": new_refresh_token
+                    }
                 }
             )
+
+            response.set_cookie(
+                key="admin_access_token",
+                value=access_token,
+                httponly=False,
+                secure=False,
+                samesite="lax",
+                max_age=60 * ENV.ACCESS_EXPIRE
+            )
+            response.set_cookie(
+                key="admin_refresh_token",
+                value=new_refresh_token,
+                httponly=False,
+                secure=False,
+                samesite="lax",
+                max_age=60 * ENV.REFRESH_EXPIRE
+            )
+
+            return response
 
         except HTTPException:
             raise
@@ -407,7 +432,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
     def create_admin(self, payload: AdminCreateRequest) -> GlobalResponse:
         try:
             # Check if email already exists
-            existing_admin = self.db.query(AdminTable).filter(AdminTable.email == request.email).first()
+            existing_admin = self.db.query(AdminTable).filter(AdminTable.email == payload.email).first()
             if existing_admin:
                 raise HTTPException(status_code=409, detail="Admin with this email already exists")
             
@@ -436,7 +461,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             # Log the creation
             new_notification = AdminSessionTable(
                 admin_id=admin_id,
-                session_id=f"created_by_{current_admin.admin_id}",
+                session_id=f"created_by_{new_admin.admin_id}",
                 device_uuid=None,
                 device_id=None,
                 last_ip_address=ip,
@@ -530,7 +555,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
-    def update_admin(self, admin_id: str) -> GlobalResponse:
+    def update_admin(self, admin_id: str, payload: AdminUpdateRequest) -> GlobalResponse:
         try:
             # Cannot modify yourself
             if admin_id == current_admin.admin_id:
@@ -542,24 +567,24 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             
             # Prevent changing the last super_admin
             if admin.is_super_admin and admin.role == AdminRole.SUPER_ADMIN.value:
-                if request.role and request.role != AdminRoleEnum.SUPER_ADMIN:
+                if payload.role and payload.role != AdminRoleEnum.SUPER_ADMIN:
                     raise HTTPException(status_code=400, detail="Cannot change role of the last super admin")
-                if request.is_active is False:
+                if payload.is_active is False:
                     raise HTTPException(status_code=400, detail="Cannot deactivate the last super admin")
             
             # Update fields
-            if request.full_name is not None:
-                admin.full_name = request.full_name
-            if request.role is not None:
-                admin.role = request.role.value
-            if request.is_active is not None:
-                admin.is_active = request.is_active
-            if request.profile_image_url is not None:
-                admin.profile_image_url = request.profile_image_url
+            if payload.full_name is not None:
+                admin.full_name = payload.full_name
+            if payload.role is not None:
+                admin.role = payload.role.value
+            if payload.is_active is not None:
+                admin.is_active = payload.is_active
+            if payload.profile_image_url is not None:
+                admin.profile_image_url = payload.profile_image_url
             
             admin.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            db.refresh(admin)
+            self.db.commit()
+            self.db.refresh(admin)
             
             return GlobalResponse(
                 success=True,
@@ -619,13 +644,13 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             if admin_id == current_admin.admin_id:
                 raise HTTPException(status_code=400, detail="Cannot delete your own account")
             
-            admin = db.query(AdminTable).filter(AdminTable.admin_id == admin_id).first()
+            admin = self.db.query(AdminTable).filter(AdminTable.admin_id == admin_id).first()
             if not admin:
                 raise HTTPException(status_code=404, detail="Admin not found")
             
             # Prevent deleting the last super_admin
             if admin.is_super_admin:
-                super_admin_count = db.query(AdminTable).filter(
+                super_admin_count = self.db.query(AdminTable).filter(
                     AdminTable.is_super_admin == True,
                     AdminTable.is_active == True
                 ).count()
@@ -637,7 +662,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
             admin.updated_at = datetime.now(timezone.utc)
             
             # Invalidate all sessions
-            db.query(AdminSessionTable).filter(
+            self.db.query(AdminSessionTable).filter(
                 AdminSessionTable.admin_id == admin_id,
                 AdminSessionTable.is_login == True
             ).update({
@@ -645,7 +670,7 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                 "logout_at": datetime.now(timezone.utc)
             })
             
-            db.commit()
+            self.db.commit()
             
             return GlobalResponse(
                 success=True,
@@ -696,13 +721,16 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
 
     def get_user_details(self, user_id: str) -> GlobalResponse:
         try:
-            user = self.db.query(UserTable).filter(UserTable.user_id == user_id).first()
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == user_id
+            ).first()
+
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
             
-            wallet = self.db.query(WalletTable).filter(WalletTable.user_id == user_id).first()
-            settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user_id).first()
-            kyc = self.db.query(KYCTable).filter(KYCTable.user_id == user_id).first()
+            wallet: WalletTable = user.wallet
+            settings: SettingsTable = user.settings
+            user_kyc: KYCTable = user.user_kyc
 
             phone = (
                 f"{user.country_code or ''}{user.phone_number}"
@@ -736,8 +764,8 @@ class AdminManagementServices(UserVerificationService, TokenGenerators):
                         "dark_mode": settings.dark_mode if settings else False,
                         "language": settings.language if settings else "en",
                         "account_locked": settings.account_locked if settings else False,
-                        "kyc_status": kyc.kyc_status if kyc else "pending",
-                        "kyc_verified_at": kyc.updated_at if kyc else None,
+                        "kyc_status": user_kyc.kyc_status if user_kyc else "pending",
+                        "kyc_verified_at": user_kyc.updated_at if user_kyc else None,
                     }
                 }
             )

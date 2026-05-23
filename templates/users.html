@@ -4,6 +4,42 @@
 {% block title %}Users{% endblock %}
 {% block page_title %}Users{% endblock %}
 
+{% block extra_css %}
+<style>
+    #userModal.modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1060;
+        display: none;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: transparent;
+        border-radius: 0;
+        outline: 0;
+        transform: none;
+        visibility: visible;
+    }
+
+    #userModal.modal.show {
+        display: block;
+        transform: none;
+    }
+
+    #userModal .modal-dialog {
+        pointer-events: auto;
+    }
+
+    .modal-backdrop {
+        z-index: 1050;
+    }
+</style>
+{% endblock %}
+
 {% block header_actions %}
     <button class="header-btn" onclick="loadUsers()">
         <i class="fas fa-sync-alt"></i>
@@ -105,12 +141,12 @@
 {% endblock %}
 
 {% block modals %}
-<div class="modal fade" id="modal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-light">
                 <h5 class="modal-title fw-bold" id="modalTitle">Details</h5>
-                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal" onclick="closeModal()"></button>
+                <button type="button" class="btn-close shadow-none" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="modalBody"></div>
         </div>
@@ -223,13 +259,23 @@
         function showModal(title, content) {
             document.getElementById('modalTitle').innerText = title;
             document.getElementById('modalBody').innerHTML = content;
+            cleanupModalState();
             bsModal.show();
         }
 
-        function closeModal() { bsModal.hide(); }
+        function closeUserModal() { bsModal.hide(); }
+
+        function cleanupModalState() {
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('overflow');
+            document.body.style.removeProperty('padding-right');
+        }
 
         document.addEventListener("DOMContentLoaded", function() {
-            bsModal = new bootstrap.Modal(document.getElementById('modal'));
+            const userModalEl = document.getElementById('userModal');
+            bsModal = new bootstrap.Modal(userModalEl);
+            userModalEl.addEventListener('hidden.bs.modal', cleanupModalState);
             loadUsers();
         });
 
@@ -279,7 +325,7 @@
                                         <p class="mb-0 text-muted small">Current Balance</p>
                                         <h4 class="mb-0 fw-bold">৳${parseFloat(wallet.balance).toLocaleString('en-BD')}</h4>
                                     </div>
-                                    <button class="btn btn-primary btn-sm" onclick="closeModal()">Close</button>
+                                    <button class="btn btn-primary btn-sm" onclick="closeUserModal()">Close</button>
                                 </div>
                             </div>
                         </div>
@@ -357,7 +403,7 @@
                 if (!response.ok) throw new Error("Failed to send notification");
                 
                 alert("Notification sent successfully!");
-                closeModal();
+                closeUserModal();
             } catch (err) {
                 alert(err.message);
             } finally {

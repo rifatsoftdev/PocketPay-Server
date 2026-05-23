@@ -95,7 +95,7 @@ echo "=========================================="
 echo "  Setup Options"
 echo "=========================================="
 echo ""
-echo "1. Setup with Docker (Recommended)"
+echo "1. Setup with Docker / Docker Compose"
 echo "2. Setup without Docker (Manual)"
 echo ""
 read -p "Choose an option (1 or 2): " -n 1 -r
@@ -111,9 +111,14 @@ if [[ $REPLY =~ ^[1]$ ]]; then
         exit 1
     fi
     
-    # Check if docker-compose is installed
-    if ! command -v docker-compose &> /dev/null; then
-        echo -e "${RED}✗ Docker Compose is not installed. Please install Docker Compose first.${NC}"
+    # Check if Docker Compose is installed
+    if docker compose version &> /dev/null; then
+        COMPOSE_CMD="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        COMPOSE_CMD="docker-compose"
+    else
+        echo -e "${RED}✗ Docker Compose is not installed.${NC}"
+        echo "You can either install Docker Compose or run this script again and choose option 2 for manual setup."
         exit 1
     fi
     
@@ -129,11 +134,11 @@ if [[ $REPLY =~ ^[1]$ ]]; then
     
     echo ""
     echo -e "${GREEN}Building Docker image...${NC}"
-    docker-compose build
+    $COMPOSE_CMD build
     
     echo ""
     echo -e "${GREEN}Starting PocketPay Server...${NC}"
-    docker-compose up -d
+    $COMPOSE_CMD up -d
     
     echo ""
     echo -e "${GREEN}✓ Setup complete!${NC}"
@@ -152,10 +157,10 @@ if [[ $REPLY =~ ^[1]$ ]]; then
     echo -e "   ${GREEN}http://localhost:8000/admin/login${NC}"
     echo ""
     echo "View logs:"
-    echo -e "   ${GREEN}docker-compose logs -f${NC}"
+    echo -e "   ${GREEN}$COMPOSE_CMD logs -f${NC}"
     echo ""
     echo "Stop server:"
-    echo -e "   ${GREEN}docker-compose down${NC}"
+    echo -e "   ${GREEN}$COMPOSE_CMD down${NC}"
     echo ""
     
 elif [[ $REPLY =~ ^[2]$ ]]; then

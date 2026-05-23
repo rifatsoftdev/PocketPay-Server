@@ -5,68 +5,76 @@ dotenv.load_dotenv()
 
 
 class ENV:
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-    DATABASE_URL = os.getenv("DATABASE_URL")
+    # DataBase configuration
+    DATABASE_URL: str = os.getenv("DATABASE_URL")
     
-    # Environment variables for email configuration
-    EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-    EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-    SMTP_SERVER = os.getenv("SMTP_SERVER")
-    SMTP_PORT = int(os.getenv("SMTP_PORT"))
-    EMAIL_USE_TLS = bool(os.getenv("EMAIL_USE_TLS"))
-    EMAIL_USE_SSL = bool(os.getenv("EMAIL_USE_SSL"))
+    # # Email configuration
+    EMAIL_ADDRESS: str = os.getenv("EMAIL_ADDRESS")
+    EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD")
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT"))
+    EMAIL_USE_TLS: bool = bool(os.getenv("EMAIL_USE_TLS"))
+    EMAIL_USE_SSL: bool = bool(os.getenv("EMAIL_USE_SSL"))
 
-    # Environment variables for SMS configuration
-    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+    # JWT configuration
+    SECRET_KEY: str = os.getenv("SECRET_KEY")
+    ALGORITHM: str = os.getenv("ALGORITHM")
+    ACCESS_EXPIRE: int = int(os.getenv("ACCESS_EXPIRE"))
+    REFRESH_EXPIRE: int = int(os.getenv("REFRESH_EXPIRE"))
+    OTP_TOKEN_EXPIRE_MIN: int = int(os.getenv("OTP_TOKEN_EXPIRE_MIN"))
+    PASS_RST_TOKEN_EXPIRE: int = int(os.getenv("PASS_RST_TOKEN_EXPIRE_MIN"))
 
-    # Secret Key for JWT
-    SECRET_KEY = os.getenv("SECRET_KEY")
-    ALGORITHM = os.getenv("ALGORITHM")
-    ACCESS_EXPIRE = int(os.getenv("ACCESS_EXPIRE"))
-    REFRESH_EXPIRE = int(os.getenv("REFRESH_EXPIRE"))
+    # Redis configuration
+    REDIS_URL: str = os.getenv("REDIS_URL", "memory://")
 
-    # OTP
-    OTP_TOKEN_EXPIRE_MIN = int(os.getenv("OTP_TOKEN_EXPIRE_MIN"))
-    PASS_RST_TOKEN_EXPIRE = int(os.getenv("PASS_RST_TOKEN_EXPIRE_MIN"))
+    # Rewards configuration
+    NEW_USER_REWARD_WITH_REFERRAL: Decimal = Decimal(os.getenv("NEW_USER_REWARD_WITH_REFERRAL"))
+    NEW_USER_REWARD_WITH_NO_REFERRAL: Decimal = Decimal(os.getenv("NEW_USER_REWARD_WITH_NO_REFERRAL"))
+    USER_REFERRAL_REWARD: Decimal = Decimal(os.getenv("USER_REFERRAL_REWARD"))
 
+    # Service Charge configuration
+    SERVICE_CHARGE: Decimal = Decimal(os.getenv("SERVICE_CHARGE"))
 
-    # Rewards
-    NEW_USER_REWARD_WITH_REFERRAL = Decimal(os.getenv("NEW_USER_REWARD_WITH_REFERRAL"))
-    NEW_USER_REWARD_WITH_NO_REFERRAL = Decimal(os.getenv("NEW_USER_REWARD_WITH_NO_REFERRAL"))
-    USER_REFERRAL_REWARD = Decimal(os.getenv("USER_REFERRAL_REWARD"))
+    # Server Version and Debug mode
+    VERSION: str = os.getenv("VERSION")
+    DEBUG: bool = bool(os.getenv("DEBUG"))
 
-    # Servece Charge
-    SERVICE_CHARGE = Decimal(os.getenv("SERVICE_CHARGE"))
+    # Cloudinary configuration
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY")  
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET")
 
-    # Server Version
-    VERSION = os.getenv("VERSION")
-    DEBUG = bool(os.getenv("DEBUG"))
+    # Salt for password hashing
+    SALT: str = os.getenv("SALT")
 
-    # Cloudinary Config
-    CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
-    CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")  
-    CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+    # Salt for password hashing
+    POCKETPAY_ADMINSDK: str = os.getenv("POCKETPAY_ADMINSDK")
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
 
-    SALT = os.getenv("SALT")
+    # CORS configuration
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS")
 
-    SERVICE_ACCOUNT_PATH = os.getenv("SERVICE_ACCOUNT_PATH")
+    # Logging configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL")
 
     # Default admin
-    DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL")
-    DEFAULT_ADMIN_PHONE = os.getenv("DEFAULT_ADMIN_PHONE")
-    DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD")
-    DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME")
-
+    DEFAULT_ADMIN_EMAIL: str = os.getenv("DEFAULT_ADMIN_EMAIL")
+    DEFAULT_ADMIN_PHONE: str = os.getenv("DEFAULT_ADMIN_PHONE")
+    DEFAULT_ADMIN_PASSWORD: str = os.getenv("DEFAULT_ADMIN_PASSWORD")
+    DEFAULT_ADMIN_NAME: str = os.getenv("DEFAULT_ADMIN_NAME")
+    
     # Default user
-    DEFAULT_USER_EMAIL = os.getenv("DEFAULT_USER_EMAIL")
-    DEFAULT_USER_PHONE = os.getenv("DEFAULT_USER_PHONE")
-    DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD")
-    DEFAULT_USER_NAME = os.getenv("DEFAULT_USER_NAME")
+    DEFAULT_USER_EMAIL: str = os.getenv("DEFAULT_USER_EMAIL")
+    DEFAULT_USER_PHONE: str = os.getenv("DEFAULT_USER_PHONE")
+    DEFAULT_USER_PASSWORD: str = os.getenv("DEFAULT_USER_PASSWORD")
+    DEFAULT_USER_NAME: str = os.getenv("DEFAULT_USER_NAME")
 
 
 
 
+
+    # SERVICE_ACCOUNT_PATH = os.getenv("SERVICE_ACCOUNT_PATH")
+    # GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 
 

@@ -23,7 +23,7 @@ from app.schema.global_schema import GlobalResponse
 
 from app.services.auth.user_verification import UserVerificationService
 from app.utils.generators import Generators
-from app.utils.notification_manager import NotificationManager
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 from app.utils.helpers import utc6dhaka
 
 from app.services import BankServises

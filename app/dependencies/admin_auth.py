@@ -16,15 +16,15 @@ from functools import wraps
 from app.core.database import get_db
 from app.model.admin_table import AdminTable, AdminRole, ROLE_PERMISSIONS, AdminPermissions
 from app.model.admin_session_table import AdminSessionTable
-from app.utils.token import Token
 from app.utils.hashing import Hashing
+from app.services.auth.token_service import TokenGenerators
 
 
-class AdminAuth:
+class AdminAuth(TokenGenerators):
     """Admin authentication and authorization class"""
     
-    def __init__(self):
-        self.token_service = Token()
+    # def __init__(self):
+    #     self.token_service = Token()
 
     def _get_role_permissions(self, admin: AdminTable) -> List[str]:
         return ROLE_PERMISSIONS.get(AdminRole(admin.role), [])
@@ -51,7 +51,7 @@ class AdminAuth:
             token = auth_header.replace("Bearer ", "")
             
             # Decode token
-            payload = self.token_service.decode_token(token)
+            payload = self._decode_token(token)
             if not payload:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -241,7 +241,7 @@ class AdminAuth:
 
 
 # Create global instance
-admin_auth = AdminAuth()
+admin_auth = AdminAuth(db=None)  # db is not used in the constructor, so we can pass None
 
 # Convenience dependencies - these are factory functions that return async dependencies
 get_current_admin = admin_auth.get_current_admin

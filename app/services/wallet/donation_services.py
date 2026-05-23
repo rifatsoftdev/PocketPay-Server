@@ -6,7 +6,8 @@ from app.constants import AnsiColor, String
 from app.schema import GlobalResponse, DonationOut, DonationsRequest, DonationOrgRequest, DonationOrgRemoveRequest
 from app.enums import ActivityStatus, PaymentMethods, NotificationType, TransactionDirection, TransactionStatus, TransactionType
 from app.model import TransactionTable, WalletTable, DonationTable, AdminTable, UserTable
-from app.utils import Generators, Helpers, Token
+from app.services.auth.token_service import TokenGenerators
+from app.utils import Generators, Helpers
 
 from app.services.wallet.wallet_service import WalletService, ServiceChargeData
 from app.services.auth.user_verification import UserVerificationService
@@ -14,7 +15,7 @@ from app.services.notification.noticication_services import NotificationServices
 
 
 
-class DonationServices(WalletService):
+class DonationServices(WalletService, TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -29,7 +30,7 @@ class DonationServices(WalletService):
 
     def _verify_admin_request(self):
         access_token = Helpers.authorization(self.authorization)
-        payload = Token().decode_token(access_token)
+        payload = self._decode_token(access_token)
         if not payload or payload.get("type") != "access" or not payload.get("admin_id"):
             raise HTTPException(status_code=401, detail=String.INVALID_TOKEN)
 

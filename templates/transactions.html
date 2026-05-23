@@ -4,6 +4,42 @@
 {% block title %}Transactions{% endblock %}
 {% block page_title %}Transaction Logs{% endblock %}
 
+{% block extra_css %}
+<style>
+    #transactionModal.modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1060;
+        display: none;
+        width: 100%;
+        height: 100%;
+        max-width: none;
+        max-height: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: transparent;
+        border-radius: 0;
+        outline: 0;
+        transform: none;
+        visibility: visible;
+    }
+
+    #transactionModal.modal.show {
+        display: block;
+        transform: none;
+    }
+
+    #transactionModal .modal-dialog {
+        pointer-events: auto;
+    }
+
+    .modal-backdrop {
+        z-index: 1050;
+    }
+</style>
+{% endblock %}
+
 {% block header_actions %}
 <button class="header-btn" onclick="loadTransactions()" title="Refresh">
     <i class="fas fa-sync-alt"></i>
@@ -110,6 +146,7 @@
     let totalPages = 1;
     let searchTimeout = null;
     let transactionsCache = [];
+    let transactionModal;
 
     function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>"']/g, function(char) {
@@ -264,9 +301,22 @@
             </dl>
         `;
 
-        bootstrap.Modal.getOrCreateInstance(document.getElementById("transactionModal")).show();
+        cleanupModalState();
+        transactionModal.show();
     }
 
-    document.addEventListener("DOMContentLoaded", loadTransactions);
+    function cleanupModalState() {
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('overflow');
+        document.body.style.removeProperty('padding-right');
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const transactionModalEl = document.getElementById("transactionModal");
+        transactionModal = new bootstrap.Modal(transactionModalEl);
+        transactionModalEl.addEventListener("hidden.bs.modal", cleanupModalState);
+        loadTransactions();
+    });
 </script>
 {% endblock %}

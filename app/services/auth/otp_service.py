@@ -6,8 +6,7 @@ from app.constants import ENV, AnsiColor, String
 from app.enums import OTPMethod, OTPPurpose, TwoFactorType
 from app.model import OTPTable, SessionTable, TwoFactorTable, UserTable
 from app.schema import OTPRequest, GlobalResponse, VerifyOTPRequest
-from app.utils import Token, Generators, Hashing, Helpers, TwoFactorAuth
-from app.utils.bg_task import send_otp_email
+from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
 
 
 class OTPService:

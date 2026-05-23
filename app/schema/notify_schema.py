@@ -1,14 +1,15 @@
 from pydantic import BaseModel
 
-from app.enums import NotificationType, NotificationCreator
+from app.enums import NotificationType
 
 
 class AdminNotyfyResuest(BaseModel):
-    user_id: str
-
-    type: str = NotificationType.ALERT
+    user_id: str | None = None
+    notification_type: NotificationType | None = None
+    type: NotificationType | None = None
     title: str
-    body: str
+    message: str | None = None
+    body: str | None = None
     image_url: str | None = None
 
     button_text: str | None = None

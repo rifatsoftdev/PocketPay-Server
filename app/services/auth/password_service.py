@@ -9,10 +9,10 @@ from app.schema import ForgetPasswordRequest, GlobalResponse, ResetPasswordReque
 from app.model import UserTable, ResetPasswordTable, NotificationTable
 
 from app.services.auth.token_service import TokenGenerators
-from app.utils import Hashing, Token
-from app.utils.bg_task import send_reset_password_email
-from app.utils.notification_manager import NotificationManager
+from app.utils import Hashing
+
 from app.services.auth.user_verification import UserVerificationService
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 
 
 templates = Jinja2Templates(directory="templates")
@@ -107,19 +107,21 @@ class PasswordService(TokenGenerators):
             self.db.flush()
 
             # real time notification
-            notifier = NotificationManager(self.db)
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
 
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=user.user_id,
-                title="Reset Password Request Detected",
-                short_body=f"We have received a password reset request for your account from {ip} IP address. Make sure you have your email address with you.",
-                long_body=None,
-                noty_type=NotificationType.ALERT,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    title="Reset Password Request Detected",
+                    body=f"We have received a password reset request for your account from {ip} IP address. Make sure you have your email address with you.",
+                    noty_type=NotificationType.ALERT,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             # db commit and refresh
@@ -189,8 +191,7 @@ class PasswordService(TokenGenerators):
             cookies: dict = self.request.cookies
 
             # check token
-            token_service = Token()
-            payload = token_service.decode_token(reset_token)
+            payload = self._decode_token(reset_token)
 
             if not payload:
                 raise HTTPException(status_code=400, detail=String.INVALID_OR_EXPIRED_TOKEN)
@@ -228,19 +229,21 @@ class PasswordService(TokenGenerators):
             self.db.flush()
 
             # real time notification
-            notifier = NotificationManager(self.db)
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
 
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=user.user_id,
-                title="Password Reset Successful",
-                short_body=f"Your password has been successfully reset on ip address {ip}.",
-                long_body=None,
-                noty_type="alert",
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    title="Password Reset Successful",
+                    body=f"Your password has been successfully reset on ip address {ip}.",
+                    noty_type=NotificationType.ALERT,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             self.db.commit()
@@ -296,18 +299,22 @@ class PasswordService(TokenGenerators):
             self.db.add(new_notification)
             self.db.flush()
 
-            notifier = NotificationManager(self.db)
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=user.user_id,
-                title="Password Changed",
-                short_body=f"Your password was changed from IP {ip}.",
-                long_body=None,
-                noty_type=NotificationType.ALERT,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            # real time notification
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
+            
+            notificationServices.send_notification(
+                data=NotificationData(
+                    user_id=user.user_id,
+                    title="Password Changed",
+                    body=f"Your password was changed from IP {ip}. If this wasn't you, reset your password immediately.",
+                    noty_type=NotificationType.ALERT,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             self.db.commit()

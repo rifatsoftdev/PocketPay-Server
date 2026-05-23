@@ -7,7 +7,8 @@ from app.constants import String, AnsiColor
 from app.model import WalletTable, TransactionTable, MobileOperatorTable, AdminTable, AdminSessionTable
 from app.enums import NotificationType, ActivityStatus, TransactionType, TransactionStatus, TransactionDirection, PaymentMethods
 from app.schema import MobileRechargeRequest, NewOperatorRequest, OperatorDeactivateRequest, OperatorActivateRequest, GlobalResponse
-from app.utils import Generators, Hashing, Helpers, Token
+from app.services.auth.token_service import TokenGenerators
+from app.utils import Generators, Hashing, Helpers
 
 from app.services.wallet.wallet_service import WalletService, ServiceChargeData
 from app.services.auth.user_verification import UserVerificationService
@@ -15,7 +16,7 @@ from app.services.notification.noticication_services import NotificationServices
 
 
 
-class RechargeServices(WalletService):
+class RechargeServices(WalletService, TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -34,7 +35,7 @@ class RechargeServices(WalletService):
                 return False
 
             access_token = self.authorization.replace("Bearer ", "", 1)
-            token_payload = Token().decode_token(access_token)
+            token_payload = self._decode_token(access_token)
 
             if not token_payload or token_payload.get("type") != "access":
                 return False

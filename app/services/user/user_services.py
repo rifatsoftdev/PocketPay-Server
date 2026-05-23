@@ -102,9 +102,9 @@ class UserServices:
                         "country": settings.country if settings else None,
                         "language": settings.language if settings else None,
 
-                        "totp_enabled": "totp" in two_factor_methods,
-                        "two_factor_enabled": bool(two_factor_methods),
-                        "two_factor_methods": two_factor_methods,
+                        "totp_tfa_enabled": "totp" in two_factor_methods,
+                        "sms_tfa_enabled": "sms" in two_factor_methods,
+                        "email_tfa_enabled": "email" in two_factor_methods,
                         "biometric_enabled": settings.biometric_enabled if settings else None,
                         "account_locked": settings.account_locked if settings else None,
 

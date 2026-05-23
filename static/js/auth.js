@@ -5,6 +5,10 @@
 
 // Auth state
 class AuthService {
+    constructor() {
+        this.refreshPromise = null;
+    }
+
     getDeviceId() {
         let deviceId = localStorage.getItem("admin_device_id");
         if (!deviceId) {
@@ -100,18 +104,42 @@ class AuthService {
 
     // get new access token
     async getAccessToken() {
-        const response = await fetch("/admin/refresh", {
+        const refreshToken = localStorage.getItem("admin_refresh_token");
+        if (!refreshToken) return null;
+
+        if (this.refreshPromise) {
+            return this.refreshPromise;
+        }
+
+        this.refreshPromise = this.refreshAccessToken(refreshToken);
+
+        try {
+            return await this.refreshPromise;
+        } finally {
+            this.refreshPromise = null;
+        }
+    }
+
+    async refreshAccessToken(refreshToken) {
+        const response = await window.__rawFetch("/admin/refresh", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                refresh_token: localStorage.getItem("admin_refresh_token"),
+                refresh_token: refreshToken,
                 device_id: this.getDeviceId(),
                 device_uuid: this.getDeviceUuid()
             })
         });
-        const data = await response.json();
-        if (data.success) {
+
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (error) {
+            return null;
+        }
+
+        if (response.ok && data.success) {
             localStorage.setItem("admin_access_token", data.data.access_token);
             localStorage.setItem("admin_refresh_token", data.data.refresh_token);
             return data.data.access_token;
@@ -140,6 +168,48 @@ class AuthService {
         return {};
     }
 
+    // fetch with automatic access-token refresh and one retry
+    async authFetch(input, options = {}) {
+        if (this.isAuthEndpoint(input)) {
+            return window.__rawFetch(input, options);
+        }
+
+        const response = await window.__rawFetch(input, this.withAuthHeader(options));
+
+        if (response.status !== 401) {
+            return response;
+        }
+
+        const newAccessToken = await this.getAccessToken();
+        if (!newAccessToken) {
+            await this.logout();
+            return response;
+        }
+
+        return window.__rawFetch(input, this.withAuthHeader(options, newAccessToken));
+    }
+
+    withAuthHeader(options = {}, token = null) {
+        const headers = new Headers(options.headers || {});
+        const accessToken = token || localStorage.getItem("admin_access_token") || this.getCookie("admin_access_token");
+
+        if (accessToken) {
+            headers.set("Authorization", `Bearer ${accessToken}`);
+        }
+
+        return {
+            ...options,
+            headers
+        };
+    }
+
+    isAuthEndpoint(input) {
+        const url = typeof input === "string" ? input : input?.url || "";
+        return url.includes("/admin/login")
+            || url.includes("/admin/logout")
+            || url.includes("/admin/refresh");
+    }
+
     // get cookie value
     getCookie(name) {
         const value = `; ${document.cookie}`;
@@ -150,7 +220,11 @@ class AuthService {
 }
 
 // Global auth instance used by templates
+window.__rawFetch = window.__rawFetch || window.fetch.bind(window);
 const Auth = new AuthService();
+window.fetch = function(input, options = {}) {
+    return Auth.authFetch(input, options);
+};
 
 
 

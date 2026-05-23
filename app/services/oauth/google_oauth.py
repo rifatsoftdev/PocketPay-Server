@@ -6,12 +6,11 @@ from google.auth.transport import requests
 from app.model import UserTable, SessionTable, NotificationTable
 from app.enums import NotificationType
 from app.constants import ENV, String, AnsiColor
-from app.utils import Hashing, Helpers, Token
+from app.utils import Hashing, Helpers
 from app.services import RegistrationService
 from app.schema import GoogleLoginRequest, GlobalResponse, LinkGoogleAccountRequest
 
-from app.utils.reward_service import RewardService
-from app.utils.notification_manager import NotificationManager
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 
 from app.services.auth.user_verification import UserVerificationService
 from app.services.auth.token_service import TokenGenerators
@@ -273,18 +272,21 @@ class GoogleOauth(TokenGenerators, WalletService):
             db.add(new_notification)
             db.flush()
 
-            notifier = NotificationManager(db)
-            notifier.send_user_notification(
-                background_tasks=background_tasks,
-                user_id=user.user_id,
-                title="Google Account Linked",
-                short_body="Your Google account was linked successfully.",
-                long_body=None,
-                noty_type=NotificationType.ALERT,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices = NotificationServices(
+                db=db,
+                background_tasks=background_tasks
+            )
+
+            notificationServices.send_notification(
+                NotificationData(
+                    user_id=user.user_id,
+                    title="Google Account Linked",
+                    body="Your Google account was linked successfully.",
+                    noty_type=NotificationType.ALERT,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             db.commit()

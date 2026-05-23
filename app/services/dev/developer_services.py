@@ -10,7 +10,7 @@ from app.model import DevTable, UserTable, WalletTable, TransactionTable
 from app.utils import Generators, Helpers
 
 from app.services.auth.user_verification import UserVerificationService
-from app.utils.notification_manager import NotificationManager
+from app.services.notification.noticication_services import NotificationServices, NotificationData
 from app.router.notify_router import check_online_user
 
 
@@ -130,16 +130,20 @@ class DeveloperServices:
             self.db.refresh(transaction)
 
             # Notify the Payer
-            notifier = NotificationManager(self.db)
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=payer.user_id,
-                title="Payment Successful",
-                short_body=f"Successfully paid {amount} BDT to {dev_user.full_name}.",
-                noty_type=NotificationType.DEFAULT,
-                push=True,
-                email=False,
-                sms=False
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
+            notificationServices.send_notification(
+                NotificationData(
+                    user_id=payer.user_id,
+                    title="Payment Successful",
+                    body=f"Successfully paid {amount} BDT to {dev_user.full_name}.",
+                    noty_type=NotificationType.DEFAULT,
+                    email=False,
+                    sms=False,
+                    push=True,
+                )
             )
 
             # Notify Developer via WebSocket

@@ -10,8 +10,7 @@ from app.schema import (
     EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest
 )
 from app.services.auth.user_verification import UserVerificationService
-from app.utils import Generators, Hashing, Helpers, Token, TwoFactorAuth
-from app.utils.bg_task import send_otp_email
+from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
 
 
 class TFAServices:

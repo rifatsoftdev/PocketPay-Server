@@ -1950,7 +1950,7 @@ img {
     visibility: visible;
 }
 
-.modal {
+.modal:not(.fade) {
     position: fixed;
     top: 50%;
     left: 50%;
@@ -1967,7 +1967,7 @@ img {
     transition: var(--transition);
 }
 
-.modal.show {
+.modal:not(.fade).show {
     opacity: 1;
     visibility: visible;
     transform: translate(-50%, -50%) scale(1);
@@ -2201,7 +2201,7 @@ img {
         grid-column: span 1;
     }
     
-    .modal {
+    .modal:not(.fade) {
         width: 95%;
     }
 }
@@ -2341,4 +2341,3 @@ img {
     padding-top: 16px;
     border-top: 1px solid var(--border-color);
 }
-

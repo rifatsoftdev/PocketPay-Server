@@ -12,9 +12,9 @@ from app.model import UserTable, SettingsTable, SessionTable, WalletTable, Notif
 from app.schema import RegisterRequest, GlobalResponse, FinalSetupRequest
 
 from app.services.auth.user_repository import UserRepository
-from app.utils.notification_manager import NotificationManager
-from app.utils.bg_task import send_welcome_email
 from app.services.wallet.wallet_service import WalletService
+from app.services.notification.noticication_services import NotificationServices, NotificationData
+
 
 
 class RegistrationService(UserRepository, WalletService):
@@ -164,19 +164,21 @@ class RegistrationService(UserRepository, WalletService):
             self.background_tasks.add_task(send_welcome_email, email_address)
 
             # real time notification
-            notifier = NotificationManager(self.db)
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
 
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=created_user.user_id,
-                title="Welcome to PocketPay! 🔐",
-                short_body=f"Your account has been successfully set up. Your security is our priority—let’s get started.",
-                long_body=None,
-                noty_type=NotificationType.ALERT,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices.send_notification(
+                NotificationData(
+                    user_id=created_user.user_id,
+                    title="Welcome to PocketPay! 🔐",
+                    body=f"Your account has been successfully set up. Your security is our priority—let’s get started.",
+                    noty_type=NotificationType.ALERT,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             # return new user

@@ -278,6 +278,7 @@ async def update_kyc_request(
 
 @admin_access_router.post("/users/{user_id}/notify", response_model=GlobalResponse)
 async def notify_user(
+    user_id: str,
     payload: AdminNotyfyResuest,
 
     request: Request,
@@ -292,7 +293,7 @@ async def notify_user(
         authorization=authorization
     )
 
-    return adminAccessServices.notify_user(payload=payload)
+    return adminAccessServices.notify_user(user_id=user_id, payload=payload)
 
 
 

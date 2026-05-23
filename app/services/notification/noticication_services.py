@@ -1,4 +1,4 @@
-import smtplib
+import smtplib, json
 import firebase_admin
 
 from enum import Enum
@@ -57,10 +57,9 @@ class NotificationServices:
         
         # Initialize Firebase if not already initialized
         if not firebase_admin._apps:
-            service_account_path = ENV.SERVICE_ACCOUNT_PATH
-            cred = credentials.Certificate(service_account_path)
+            cred_dict = json.loads(ENV.POCKETPAY_ADMINSDK)
+            cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
-        # print(service_account_path)
         
 
     def send_by_push(self, fcm_token: str, data: NotificationData) -> bool:
@@ -102,6 +101,7 @@ class NotificationServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             return False
 
+
     def send_by_email(self, to_email: str, data: NotificationData) -> bool:
         email_address = ENV.EMAIL_ADDRESS
         email_password = ENV.EMAIL_PASSWORD
@@ -124,11 +124,13 @@ class NotificationServices:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             return False
 
+
     def send_by_sms(self, phone_number: str, data: NotificationData) -> bool:
         # Placeholder for SMS gateway integration
         print(f"{AnsiColor.GREEN}SMS SENT{AnsiColor.RESET} to {phone_number}: {data.title} - {data.body}")
         return True
 
+    
     def send_notification(self, data: NotificationData) -> bool:
         """
         Orchestrates notification sending with fallback logic:
@@ -137,8 +139,12 @@ class NotificationServices:
         self.background_tasks.add_task(self._process_fallback_notification, data)
         return True
 
+
     async def _process_fallback_notification(self, data: NotificationData):
-        user = self.db.query(UserTable).filter(UserTable.user_id == data.user_id).first()
+        user = self.db.query(UserTable).filter(
+            UserTable.user_id == data.user_id
+        ).first()
+
         if not user:
             return
 
@@ -174,6 +180,9 @@ class NotificationServices:
         # 4. Fallback to SMS
         if data.sms and user.phone_number:
             self.send_by_sms(user.phone_number, data)
+
+
+
 
 # ==============================================================================
 # ==============================================================================

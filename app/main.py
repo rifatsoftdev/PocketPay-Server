@@ -3,6 +3,13 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
 from pathlib import Path
 
 from app.core.database import SessionLocal
@@ -50,6 +57,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+# 
 app.add_middleware(
     AuthMiddleware,
     public_paths=[
@@ -71,11 +79,18 @@ app.add_middleware(
     ]
 )
 
+# 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 TMP_DIR = Path("uploads/tmp")
 
-
+# 
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["100/minute"],
+    storage_uri=ENV.REDIS_URL,
+    headers_enabled=True,
+)
 
 
 @app.on_event("startup")
@@ -146,13 +161,16 @@ async def server_exception_handler(request: Request, exc: Exception):
 
 
 # ==============================================================================
-# ==============================================================================
 
 @app.get("/")
 async def root(
     request: Request,
     authorization: str = Header(None)
 ):
+    # import json
+    # firebase_json = json.loads(ENV.POCKETPAY_ADMINSDK)
+    # print(firebase_json)
+
     # Helpers.authorization(authorization)
     # print(Hashing.create_hash("1s22s22p6"))
     return GlobalResponse(
