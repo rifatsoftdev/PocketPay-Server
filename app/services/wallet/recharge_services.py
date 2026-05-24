@@ -143,8 +143,6 @@ class RechargeServices(WalletService, TokenGenerators):
             amount = Decimal(str(payload.amount))
             reference = payload.refarence if payload.refarence else "N/A"
 
-            print(self.authorization)
-
             if amount <= 0:
                 raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
@@ -219,8 +217,16 @@ class RechargeServices(WalletService, TokenGenerators):
 
                 notificationServices.send_notification(NotificationData(
                     user_id=user.user_id,
-                    title="Mobile Recharge",
-                    body=f"You have successfully recharged {number} with {charge.amount} TK. Service Charge: {charge.charge} TK. Total Deducted: {charge.total} TK.",
+                    template="transaction.recharge",
+                    context={
+                        "amount": charge.amount,
+                        "number": number,
+                        "provider": operator.operator_name,
+                        "service_charge": charge.charge,
+                        "total": charge.total,
+                        "reference": reference,
+                        "transaction_id": transaction_id,
+                    },
                     noty_type="transaction",
                 ))
                 
@@ -305,20 +311,29 @@ class RechargeServices(WalletService, TokenGenerators):
 
             
             # real time notification
-            # notifier = NotificationManager(self.db)
+            try:
+                notificationServices = NotificationServices(
+                    db=self.db,
+                    background_tasks=self.background_tasks
+                )
 
-            # notifier.send_user_notification(
-            #     background_tasks=self.background_tasks,
-            #     user_id=user.user_id,
-            #     title="New Operator Added Request Received",
-            #     short_body=f"You have requested to become a New Operator. The request was successful. Wait for your Operator ID {new_operator.operator_id} account to be activated.",
-            #     long_body=None,
-            #     noty_type=NotificationType.REQUEST,
-            #     image_url=None,
-            #     push=True,
-            #     sms=False,
-            #     email=False
-            # )
+                notificationServices.send_notification(
+                    NotificationData(
+                        user_id=user.admin_id,
+                        template="operator.added",
+                        context={
+                            "operator_name": new_operator.operator_name,
+                            "country_code": new_operator.country_code,
+                            "operator_id": new_operator.operator_id,
+                            "status": new_operator.status.value
+                        },
+                        noty_type=NotificationType.OPERATOR_UPDATE.value
+                    )
+                )
+
+            except Exception as e:
+                print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     Notification failed: {e}")
+                
 
             # db commit and refresh
             self.db.commit()
@@ -432,3 +447,6 @@ class RechargeServices(WalletService, TokenGenerators):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+

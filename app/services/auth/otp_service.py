@@ -7,9 +7,10 @@ from app.enums import OTPMethod, OTPPurpose, TwoFactorType
 from app.model import OTPTable, SessionTable, TwoFactorTable, UserTable
 from app.schema import OTPRequest, GlobalResponse, VerifyOTPRequest
 from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
+from app.services.auth.token_service import TokenGenerators
 
 
-class OTPService:
+class OTPService(TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -27,7 +28,7 @@ class OTPService:
         return value.value if hasattr(value, "value") else str(value)
 
     def _decode_otp_request_token(self, otp_token: str) -> dict:
-        token_payload = Token().decode_token(otp_token)
+        token_payload = self._decode_token(otp_token)
 
         if token_payload is None:
             raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
@@ -239,20 +240,27 @@ class OTPService:
 
                 self.db.commit()
 
-            token_service = Token()
-            access_token = token_service.create_access_token(data={
-                "user_id": user.user_id,
-                "email_address": user.email_address,
-                "device_id": device_id,
-                "device_uuid": device_uuid
-            })
+            access_token = self._create_token(
+                data={
+                    "user_id": user.user_id,
+                    "email_address": user.email_address,
+                    "device_id": device_id,
+                    "device_uuid": device_uuid
+                },
+                token_type="access",
+                expire_min=ENV.ACCESS_EXPIRE
+            )
 
-            refresh_token = token_service.create_refresh_token(data={
-                "user_id": user.user_id,
-                "email_address": user.email_address,
-                "device_id": device_id,
-                "device_uuid": device_uuid
-            })
+            refresh_token = self._create_token(
+                data={
+                    "user_id": user.user_id,
+                    "email_address": user.email_address,
+                    "device_id": device_id,
+                    "device_uuid": device_uuid
+                },
+                token_type="refresh",
+                expire_min=ENV.REFRESH_EXPIRE
+            )
 
             session = self.db.query(SessionTable).filter(
                 SessionTable.user_id == user.user_id,

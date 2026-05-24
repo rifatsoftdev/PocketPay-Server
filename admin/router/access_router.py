@@ -297,6 +297,88 @@ async def notify_user(
 
 
 
+# ==============================================================================
+
+@admin_access_router.get("/delete-account-requests-list", response_model=GlobalResponse)
+async def list_delete_account_requests(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = None,
+    status: Optional[str] = Query("pending", regex="^(pending|processed|all)$")
+):
+    adminAccessServices = AdminAccessServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return adminAccessServices.list_delete_account_requests(
+        page=page,
+        limit=limit,
+        search=search,
+        status=status
+    )
+
+
+
+
+# ==============================================================================
+
+@admin_access_router.post("/delete-account-requests/{request_id}/approve", response_model=GlobalResponse)
+async def approve_delete_account_request(
+    request_id: int,
+    payload: DeleteAccountReviewRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+):
+    adminAccessServices = AdminAccessServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return adminAccessServices.approve_delete_account_request(
+        request_id=request_id,
+        payload=payload
+    )
+
+
+
+
+# ==============================================================================
+
+@admin_access_router.post("/delete-account-requests/{request_id}/reject", response_model=GlobalResponse)
+async def reject_delete_account_request(
+    request_id: int,
+    payload: DeleteAccountReviewRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    authorization: str = Header(None),
+    db: Session = Depends(get_db),
+):
+    adminAccessServices = AdminAccessServices(
+        db=db,
+        background_tasks=background_tasks,
+        request=request,
+        authorization=authorization
+    )
+
+    return adminAccessServices.reject_delete_account_request(
+        request_id=request_id,
+        payload=payload
+    )
+
+
+
 
 # ==============================================================================
 # ==============================================================================

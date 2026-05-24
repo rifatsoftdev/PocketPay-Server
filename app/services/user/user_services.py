@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime
 
 from app.constants import AnsiColor, String, ENV
+from app.enums import KYCStatus
 from app.router.qr_router import ALLOWED_TYPES, MAX_SIZE
 from app.schema import GlobalResponse, KYCRequest
 from app.model import SessionTable, UserTable, SettingsTable, KYCTable, TwoFactorTable
@@ -355,6 +356,42 @@ class UserServices:
                 url_results.append(image_url["url"])
 
             access_token = Helpers.authorization(self.authorization)
+
+            old_kyc = self.db.query(KYCTable).filter(
+                KYCTable.user_id == user_id
+            ).first()
+
+            if (old_kyc and old_kyc.kyc_status == KYCStatus.VERIFIED.value):
+                raise HTTPException(
+                    status_code=400,
+                    detail="KYC already verified. If you want to update your KYC, please contact support."
+                )
+            
+            elif (old_kyc and old_kyc.kyc_status == KYCStatus.PENDING.value):
+                raise HTTPException(
+                    status_code=400,
+                    detail="KYC already pending. We are reviewing your documents and will update your KYC status accordingly."
+                )
+            
+            elif (old_kyc and old_kyc.kyc_status == KYCStatus.REJECTED.value):
+                # update kyc info
+                old_kyc.document_type = document_type
+                old_kyc.front_image_url = url_results[0]
+                old_kyc.back_image_url = url_results[1]
+                old_kyc.user_face_image_url = url_results[2]
+                old_kyc.kyc_status = KYCStatus.PENDING.value
+                old_kyc.updated_at = datetime.utcnow()
+
+                self.db.commit()
+                self.db.refresh(old_kyc)
+
+                return GlobalResponse(
+                    success=True,
+                    message="KYC documents resubmitted successfully. Your KYC status is now pending. We will review your documents and update your KYC status accordingly.",
+                    data={
+                        "kyc_status": "pending"
+                    }
+                )
 
             # update user kyc info
             user_kyc = KYCTable(

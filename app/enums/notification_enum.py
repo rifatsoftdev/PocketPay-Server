@@ -12,6 +12,7 @@ class NotificationType(str, Enum):
     BILLPAY = "billpay"
     DONATION = "donation"
     TRANSACTION = "transaction"
+    OPERATOR_UPDATE = "operator_update"
 
 class NotificationCreator(Enum):
     SYSTEM = "system"

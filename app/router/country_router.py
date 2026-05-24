@@ -11,31 +11,6 @@ from app.services import CountryService
 country_router = APIRouter()
 
 
-# ==============================================================================
-"""
-Get all supported countries
-
-request example
-get /country/counties
-
-response example
-{
-    "success": true,
-    "message": "Supported Countries",
-    "data": {
-        "countries": [
-            {
-                "counrty_id": "country_id",
-                "counrty_name": "Bangladesh",
-                "counrty_code": "+880",
-                "flag_emoji": "🇧🇩",
-                "currency": "BDT",
-                "currency_symbol": "৳"
-            }
-        ]
-    }
-}
-"""
 
 # ==============================================================================
 
@@ -58,40 +33,6 @@ async def get_counties(
 
 
 
-# ==============================================================================
-"""
-Add new country
-
-request example
-post 
-{
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "user_password": "password",
-
-    "counrty_name": "name",
-    "counrty_code": "code",
-    "flag_emoji": "flag_emoji",
-    "currency": "currency",
-    "currency_symbol": "currency_symbol"
-}
-
-response example
-{
-    "success": true,
-    "message": "Country Added Successfully",
-    "data": {
-        "country_id": "country_id",
-        "country_name": "country_name",
-        "country_code": "country_code",
-        "flag_emoji": "flag_emoji",
-        "currency": "currency",
-        "currency_symbol": "currency_symbol"
-    }
-}
-"""
 # ==============================================================================
 
 @country_router.post("/add-new-country")
@@ -134,29 +75,6 @@ async def edit_country(
 
 
 # ==============================================================================
-"""
-Disable country
-
-request example
-post 
-{
-    "user_id": "user_id",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "user_password": "password",
-    "counrty_id": "counrty_id"
-}
-
-response example
-{
-    "success": true,
-    "message": "Country Added Successfully",
-    "data": {
-        
-    }
-}
-"""
-# ==============================================================================
 
 @country_router.post("/inactive-country")
 async def inactive_country(
@@ -178,29 +96,6 @@ async def inactive_country(
 
 
 
-# ==============================================================================
-"""
-active country
-
-request example
-post 
-{
-    "user_id": "user_id",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "user_password": "password",
-    "counrty_id": "counrty_id"
-}
-
-response example
-{
-    "success": true,
-    "message": "Country Added Successfully",
-    "data": {
-        
-    }
-}
-"""
 # ==============================================================================
 
 @country_router.post("/active-country")

@@ -567,18 +567,24 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.add(new_notification)
 
             # real time notification
-            notifier = NotificationManager(self.db)
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=user.user_id,
-                title="Delete Account Requested",
-                short_body="We received your delete account request. Your account will be removed after review.",
-                long_body=None,
-                noty_type=NotificationType.ALERT,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
+
+            notificationServices.send_notification(
+                data=NotificationData(
+                    target_id=user.user_id,
+                    type=NotificationType.ALERT,
+                    title="Delete Account Requested",
+                    template="admin.custom",
+                    context={
+                        "body": f"We received a delete account request from IP {ip}. Your account will be removed after review.",
+                    },
+                    push=True,
+                    email=True,
+                    sms=False
+                )
             )
 
             self.db.commit()
@@ -622,12 +628,19 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
                 DeletedUserTable.user_id == user_id,
                 DeletedUserTable.is_processed == False
             ).first()
+
             if not delete_request:
-                raise HTTPException(status_code=404, detail="Delete request not found")
+                raise HTTPException(
+                    status_code=404,
+                    detail="Delete request not found"
+                )
 
             self.db.delete(delete_request)
 
-            settings = self.db.query(SettingsTable).filter(SettingsTable.user_id == user_id).first()
+            settings = self.db.query(SettingsTable).filter(
+                SettingsTable.user_id == user_id
+            ).first()
+
             if settings:
                 settings.account_locked = False
 
@@ -646,3 +659,6 @@ class AccountServices(OTPService, UserRepository, TokenGenerators):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
+
+
+

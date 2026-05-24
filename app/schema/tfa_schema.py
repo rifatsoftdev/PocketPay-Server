@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -38,8 +40,9 @@ class EmailTFAConfirmRequest(BaseModel):
     access_token: str
     device_id: str
     device_uuid: str
-    otp: str
-    otp_token: str
+    user_password: str
+    otp: Optional[str] = None
+    otp_token: Optional[str] = None
 
 
 class EmailTFADisableRequest(BaseModel):

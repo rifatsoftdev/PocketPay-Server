@@ -161,7 +161,7 @@ class RegistrationService(UserRepository, WalletService):
             self.db.flush()
 
             # sent welcome email
-            self.background_tasks.add_task(send_welcome_email, email_address)
+            # self.background_tasks.add_task(send_welcome_email, email_address)
 
             # real time notification
             notificationServices = NotificationServices(
@@ -172,8 +172,10 @@ class RegistrationService(UserRepository, WalletService):
             notificationServices.send_notification(
                 NotificationData(
                     user_id=created_user.user_id,
-                    title="Welcome to PocketPay! 🔐",
-                    body=f"Your account has been successfully set up. Your security is our priority—let’s get started.",
+                    template="auth.welcome",
+                    context={
+                        "name": created_user.full_name,
+                    },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,
@@ -417,5 +419,4 @@ class RegistrationService(UserRepository, WalletService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
         
-
 

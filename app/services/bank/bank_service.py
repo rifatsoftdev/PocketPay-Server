@@ -8,6 +8,7 @@ from app.model import BankTable, WalletTable, TransactionTable
 from app.enums import ActivityStatus, NotificationType, TransactionDirection, TransactionStatus, TransactionType, PaymentMethods
 from app.schema import GlobalResponse, BankListOut, PocketToBankRequest, BankToPocketRequest
 from app.utils import Helpers, Generators
+from app.services.notification.noticication_services import NotificationData, NotificationServices
 
 
 class BankServises:
@@ -107,18 +108,27 @@ class BankServises:
             wallet.balance -= Decimal(str(charge[2]))
             wallet.last_updated = Helpers.utc6dhaka()
 
-            notifier = NotificationManager(self.db)
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=user.user_id,
-                title="Bank Transfer",
-                short_body=f"You have successfully transferred {charge[0]} TK to {bank.bank_name}. Service Charge: {charge[1]} TK. Total Deducted: {charge[2]} TK.",
-                long_body=None,
-                noty_type=NotificationType.TRANSACTION,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
+            notificationServices.send_notification(
+                NotificationData(
+                    user_id=user.user_id,
+                    template="transaction.withdraw",
+                    context={
+                        "amount": charge[0],
+                        "account": bank.bank_name,
+                        "service_charge": charge[1],
+                        "total": charge[2],
+                        "reference": reference,
+                        "transaction_id": transaction_id,
+                    },
+                    noty_type=NotificationType.TRANSACTION,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             self.db.commit()
@@ -196,18 +206,25 @@ class BankServises:
             wallet.balance += Decimal(str(amount))
             wallet.last_updated = Helpers.utc6dhaka()
 
-            notifier = NotificationManager(db)
-            notifier.send_user_notification(
-                background_tasks=self.background_tasks,
-                user_id=user.user_id,
-                title="Bank Deposit",
-                short_body=f"You have successfully added {amount} TK from {bank.bank_name} to your wallet.",
-                long_body=None,
-                noty_type=NotificationType.TRANSACTION,
-                image_url=None,
-                push=True,
-                sms=False,
-                email=False
+            notificationServices = NotificationServices(
+                db=self.db,
+                background_tasks=self.background_tasks
+            )
+            notificationServices.send_notification(
+                NotificationData(
+                    user_id=user.user_id,
+                    template="transaction.deposit",
+                    context={
+                        "amount": amount,
+                        "sender": bank.bank_name,
+                        "reference": reference,
+                        "transaction_id": transaction_id,
+                    },
+                    noty_type=NotificationType.TRANSACTION,
+                    push=True,
+                    sms=False,
+                    email=False
+                )
             )
 
             self.db.commit()
@@ -231,4 +248,3 @@ class BankServises:
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-

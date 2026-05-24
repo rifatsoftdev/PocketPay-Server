@@ -2,11 +2,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, Query, Header, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-
-
 from app.core.database import get_db
-
-
 from app.schema import (
     BillProviderCreateRequest,
     PayBillRequest,
@@ -22,15 +18,11 @@ from app.enums.notification_enum import NotificationType
 
 
 
-
 bill_router = APIRouter()
 
 
 
-# ==============================================================================
-"""
-Get Bill providers List
-"""
+
 # ==============================================================================
 
 @bill_router.get("/providers")
@@ -62,27 +54,6 @@ async def get_bill_providers(
 
 
 # ==============================================================================
-"""
-Get Bill providers by catagory
-
-request example
-get /providers/category
-
-response example
-{
-    "success": true,
-    "message": "Bill categories fetched successfully",
-    "data": {
-        "bill_categories": [
-            {
-                "company_id": 1,
-                "category": "category"
-            }
-        ]
-    }
-}
-"""
-# ==============================================================================
 
 @bill_router.get("/providers/{category}")
 async def get_bill_categories(
@@ -96,33 +67,6 @@ async def get_bill_categories(
 
 
 
-# ==============================================================================
-"""
-Pay Bill
-
-request example
-post {
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "uuid": "uuid",
-    "password": "password",
-
-    "category": "category",
-    "company_id": "company_id",
-    "bill_account": "bill_number",
-    "amount": "amount",
-    "reference": "reference"
-}
-
-response example
-
-{
-    "success": true,
-    "message": "Bill paid successfully",
-    "data": {}
-}
-"""
 # ==============================================================================
 
 @bill_router.post("/pay-bill")
@@ -142,36 +86,7 @@ async def pay_bill(
 
 
 
-# ==============================================================================
-"""
-Add new bill provider
 
-request example
-post {
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-
-    "category": "category",
-    "company_logo": "company_logo",
-    "company_name": "company_name",
-    "company_api": "company_api",
-    "company_user_id": "company_user_id",
-    "description": "description",
-
-    "min_amount": "min_amount",
-    "max_amount": "max_amount"
-}
-
-response example
-{
-    "success": true,
-    "message": "Bill provider added successfully",
-    "data": {
-    }
-}
-"""
 # ==============================================================================
 
 @bill_router.post("/new-provider")
@@ -188,6 +103,7 @@ async def add_bill_provider(
     )
 
     return bill_service.add_bill_provider(request=request)
+
 
 
 

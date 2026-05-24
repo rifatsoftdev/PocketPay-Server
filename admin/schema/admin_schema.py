@@ -133,6 +133,11 @@ class TransactionActionRequest(BaseModel):
     reference_id: Optional[str] = None
 
 
+class DeleteAccountReviewRequest(BaseModel):
+    """Request schema for reviewing account deletion requests"""
+    note: Optional[str] = Field(None, max_length=500)
+
+
 class TransactionActionResponse(BaseModel):
     """Response schema for transaction action"""
     transaction_id: str

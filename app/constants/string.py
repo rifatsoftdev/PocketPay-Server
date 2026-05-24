@@ -36,4 +36,9 @@ class String:
     VERIFY_KYC_FIRST = "Verify KYC First"
     SYSTEM_USER_ID = "PocketPay"
     
+    COMPANY_LOGO = "https://res.cloudinary.com/dgh76k5vn/image/upload/v1769602666/app_logo_ibnykm.png"
+    COMPANY_NAME = "PocketPay"
+    COMPANY_ADDRESS = "Bogura, Bangladesh"
+    COMPANY_CONTACT  = "poketpay@gmail.com"
+    
     

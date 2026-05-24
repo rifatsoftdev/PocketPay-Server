@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 
 from app.constants import AnsiColor, ENV
 from app.model import UserTable, SessionTable
+from app.templates.notification_template import NotificationTemplate
 
 from app.router.notify_router import check_online_user, send_notification as send_ws_notification
 
@@ -18,11 +19,15 @@ from app.router.notify_router import check_online_user, send_notification as sen
 class NotificationData:
     def __init__(
         self,
-        user_id: str,
-        title: str,
+        user_id: str = None,
+        title: str = None,
         body: str = None,
         noty_type: str = "default",
+        target_id: str = None,
+        type: str = None,
         data: dict = None,
+        template: str = None,
+        context: dict = None,
         image_url: str = None,
         priority: str = "normal",
         short_body: str = None,
@@ -30,11 +35,13 @@ class NotificationData:
         email: bool = True,
         sms: bool = True
     ):
-        self.user_id = user_id
-        self.title = title
+        self.user_id = user_id or target_id
+        self.title = title or "Notification"
         self.body = body or short_body or ""
-        self.noty_type = self._stringify(noty_type)
+        self.noty_type = self._stringify(type or noty_type)
         self.data = data or {}
+        self.template = self._stringify(template) if template else None
+        self.context = context or {}
         self.image_url = image_url
         self.priority = priority
         self.push = push
@@ -49,6 +56,20 @@ class NotificationData:
             return str(value.value)
         return str(value)
 
+    def render(self) -> dict:
+        if self.template:
+            return NotificationTemplate.resolve(
+                template=self.template,
+                context=self.context,
+                title=self.title,
+                body=self.body,
+            )
+
+        return NotificationTemplate.fallback(
+            title=self.title,
+            body=self.body,
+        )
+
 
 class NotificationServices:
     def __init__(self, db: Session, background_tasks: BackgroundTasks):
@@ -62,25 +83,26 @@ class NotificationServices:
             firebase_admin.initialize_app(cred)
         
 
-    def send_by_push(self, fcm_token: str, data: NotificationData) -> bool:
+    def send_by_push(self, fcm_token: str, data: NotificationData, content: dict = None) -> bool:
         """
         Single device token এ push notification send
         Returns True if successful, False if failed
         """
         try:
+            push_content = content or data.render()["push"]
             payload = {
                 "type": data.noty_type,
                 "noty_type": data.noty_type,
-                "title": data.title,
-                "body": data.body,
+                "title": push_content["title"],
+                "body": push_content["body"],
                 "img_url": data.image_url or "",
                 **data.data
             }
 
             message = messaging.Message(
                 notification=messaging.Notification(
-                    title=data.title,
-                    body=data.body,
+                    title=push_content["title"],
+                    body=push_content["body"],
                     image=data.image_url
                 ),
                 data={key: NotificationData._stringify(value) for key, value in payload.items()},
@@ -102,14 +124,15 @@ class NotificationServices:
             return False
 
 
-    def send_by_email(self, to_email: str, data: NotificationData) -> bool:
+    def send_by_email(self, to_email: str, data: NotificationData, content: dict = None) -> bool:
         email_address = ENV.EMAIL_ADDRESS
         email_password = ENV.EMAIL_PASSWORD
         smtp_server = ENV.SMTP_SERVER
         smtp_port = ENV.SMTP_PORT
 
-        msg = MIMEText(data.body, 'html')
-        msg['Subject'] = data.title
+        email_content = content or data.render()["email"]
+        msg = MIMEText(email_content["body"], 'html')
+        msg['Subject'] = email_content["title"]
         msg['From'] = email_address
         msg['To'] = to_email
 
@@ -125,9 +148,10 @@ class NotificationServices:
             return False
 
 
-    def send_by_sms(self, phone_number: str, data: NotificationData) -> bool:
+    def send_by_sms(self, phone_number: str, data: NotificationData, content: dict = None) -> bool:
         # Placeholder for SMS gateway integration
-        print(f"{AnsiColor.GREEN}SMS SENT{AnsiColor.RESET} to {phone_number}: {data.title} - {data.body}")
+        sms_content = content or data.render()["sms"]
+        print(f"{AnsiColor.GREEN}SMS SENT{AnsiColor.RESET} to {phone_number}: {sms_content['title']} - {sms_content['body']}")
         return True
 
     
@@ -148,12 +172,13 @@ class NotificationServices:
         if not user:
             return
 
+        content = data.render()
         notification_delivered = False
 
         # 1. Try WebSocket (Real-time)
         if data.push and check_online_user(user.user_id):
             await send_ws_notification(
-                user.user_id, data.noty_type, data.title, data.body, data.image_url
+                user.user_id, data.noty_type, content["push"]["title"], content["push"]["body"], data.image_url
             )
             notification_delivered = True
 
@@ -166,20 +191,18 @@ class NotificationServices:
             ).all()
             
             for session in sessions:
-                if self.send_by_push(session.fcm_token, data):
+                if self.send_by_push(session.fcm_token, data, content["push"]):
                     notification_delivered = True
 
-        if notification_delivered:
-            return
-
-        # 3. Fallback to Email
+        # 3. Email
         if data.email and user.email_address:
-            if self.send_by_email(user.email_address, data):
-                return
+            if self.send_by_email(user.email_address, data, content["email"]):
+                notification_delivered = True
 
-        # 4. Fallback to SMS
+        # 4. SMS
         if data.sms and user.phone_number:
-            self.send_by_sms(user.phone_number, data)
+            if self.send_by_sms(user.phone_number, data, content["sms"]):
+                notification_delivered = True
 
 
 

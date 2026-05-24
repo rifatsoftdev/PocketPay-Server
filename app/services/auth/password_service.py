@@ -115,8 +115,10 @@ class PasswordService(TokenGenerators):
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
-                    title="Reset Password Request Detected",
-                    body=f"We have received a password reset request for your account from {ip} IP address. Make sure you have your email address with you.",
+                    template="auth.password.reset.request",
+                    context={
+                        "ip": ip,
+                    },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,
@@ -145,8 +147,7 @@ class PasswordService(TokenGenerators):
 
     def reset_password_page(self, password_token: str):
         try:
-            token_service = Token()
-            payload = token_service.decode_token(password_token)
+            payload = self._decode_token(password_token)
 
             if not payload:
                 return templates.TemplateResponse("expired.html", {"request": self.request})
@@ -237,8 +238,10 @@ class PasswordService(TokenGenerators):
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
-                    title="Password Reset Successful",
-                    body=f"Your password has been successfully reset on ip address {ip}.",
+                    template="auth.password.reset.success",
+                    context={
+                        "ip": ip,
+                    },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,
@@ -308,8 +311,10 @@ class PasswordService(TokenGenerators):
             notificationServices.send_notification(
                 data=NotificationData(
                     user_id=user.user_id,
-                    title="Password Changed",
-                    body=f"Your password was changed from IP {ip}. If this wasn't you, reset your password immediately.",
+                    template="auth.password.changed",
+                    context={
+                        "ip": ip,
+                    },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,

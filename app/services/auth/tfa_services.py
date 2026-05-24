@@ -9,11 +9,12 @@ from app.schema import (
     GlobalResponse, TOTPSetupRequest, TOTPConfirmRequest, TOTPAuthDisableRequest,
     EmailTFASetupRequest, EmailTFAConfirmRequest, EmailTFADisableRequest
 )
+from app.services.auth.token_service import TokenGenerators
 from app.services.auth.user_verification import UserVerificationService
 from app.utils import Generators, Hashing, Helpers, TwoFactorAuth
 
 
-class TFAServices:
+class TFAServices(TokenGenerators):
     def __init__(
         self,
         db: Session,
@@ -234,14 +235,18 @@ class TFAServices:
                 self.db.delete(old_otp)
                 self.db.flush()
 
-            token_service = Token()
-            otp_token = token_service.create_otp_token(data={
-                "method": "email_tfa",
-                "user_id": user.user_id,
-                "delever_to": user.email_address,
-                "device_id": self.__device_id(payload),
-                "device_uuid": self.__device_uuid(payload)
-            })
+            
+            otp_token = self._create_token(
+                data={
+                    "method": "email_tfa",
+                    "user_id": user.user_id,
+                    "delever_to": user.email_address,
+                    "device_id": self.__device_id(payload),
+                    "device_uuid": self.__device_uuid(payload)
+                },
+                token_type="email_tfa",
+                expire_min=ENV.OTP_TOKEN_EXPIRE_MIN
+            )
 
             otp = Generators.generate_otp()
             otp_record = OTPTable(
@@ -258,7 +263,8 @@ class TFAServices:
             if ENV.DEBUG:
                 print(f"{AnsiColor.BLUE}INFO{AnsiColor.RESET}:     Email TFA OTP sent to {user.email_address} code {otp}")
 
-            self.background_tasks.add_task(send_otp_email, user.email_address, otp)
+            
+            # self.background_tasks.add_task(send_otp_email, user.email_address, otp)
 
             self.db.commit()
             self.db.refresh(otp_record)
@@ -299,7 +305,8 @@ class TFAServices:
             if not otp_record:
                 raise HTTPException(status_code=404, detail=String.OTP_NOT_FOUND)
 
-            token_payload = Token().decode_token(payload.otp_token)
+            token_payload = self._decode_token(payload.otp_token)
+
             if token_payload is None:
                 raise HTTPException(status_code=401, detail=String.TIME_LIMET_EXPAIRE)
 
@@ -311,6 +318,7 @@ class TFAServices:
 
             token_device_id = token_payload.get("device_id") or token_payload.get("android_id")
             token_device_uuid = token_payload.get("device_uuid") or token_payload.get("android_uuid")
+            
             if self.__device_id(payload) != token_device_id or self.__device_uuid(payload) != token_device_uuid:
                 raise HTTPException(status_code=401, detail="Invalid Device")
 

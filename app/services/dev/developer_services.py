@@ -137,8 +137,14 @@ class DeveloperServices:
             notificationServices.send_notification(
                 NotificationData(
                     user_id=payer.user_id,
-                    title="Payment Successful",
-                    body=f"Successfully paid {amount} BDT to {dev_user.full_name}.",
+                    template="transaction.payment",
+                    context={
+                        "amount": amount,
+                        "receiver": receiver_account,
+                        "provider": dev_user.full_name,
+                        "reference": payload.refarence or "N/A",
+                        "transaction_id": transaction_id,
+                    },
                     noty_type=NotificationType.DEFAULT,
                     email=False,
                     sms=False,

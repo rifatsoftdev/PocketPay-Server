@@ -624,8 +624,11 @@ class AdminAccessServices(UserVerificationService):
                 notification_service.send_notification(
                     NotificationData(
                         user_id=payload.user_id,
-                        title=notification_title,
-                        body=notification_body,
+                        template="kyc.updated",
+                        context={
+                            "status": new_status.value,
+                            "reason": payload.rejection_reason,
+                        },
                         noty_type=NotificationType.ALERT,
                         data={
                             "kyc_status": new_status.value,
@@ -709,7 +712,12 @@ class AdminAccessServices(UserVerificationService):
                     NotificationData(
                         user_id=target_user_id,
                         title=payload.title,
-                        body=notification_body,
+                        template="admin.custom",
+                        context={
+                            "body": notification_body,
+                            "button_text": payload.button_text,
+                            "button_link": payload.button_link,
+                        },
                         noty_type=notification_type,
                         data={
                             "button_text": payload.button_text,
@@ -744,3 +752,215 @@ class AdminAccessServices(UserVerificationService):
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
             raise HTTPException(status_code=500, detail="Internal server error")
 
+    def list_delete_account_requests(
+        self,
+        page: int,
+        limit: int,
+        search: Optional[str] = None,
+        status: str = "pending"
+    ) -> GlobalResponse:
+        try:
+            query = self.db.query(DeletedUserTable)
+
+            if status == "pending":
+                query = query.filter(DeletedUserTable.is_processed == False)
+            elif status == "processed":
+                query = query.filter(DeletedUserTable.is_processed == True)
+
+            if search:
+                query = query.filter(
+                    or_(
+                        DeletedUserTable.user_id.ilike(f"%{search}%"),
+                        DeletedUserTable.full_name.ilike(f"%{search}%"),
+                        DeletedUserTable.email_address.ilike(f"%{search}%"),
+                        DeletedUserTable.phone_number.ilike(f"%{search}%")
+                    )
+                )
+
+            total = query.count()
+            offset = (page - 1) * limit
+            delete_requests = query.order_by(
+                desc(DeletedUserTable.requested_at)
+            ).offset(offset).limit(limit).all()
+
+            request_list = []
+            for delete_request in delete_requests:
+                user = self.db.query(UserTable).filter(
+                    UserTable.user_id == delete_request.user_id
+                ).first()
+                wallet = self.db.query(WalletTable).filter(
+                    WalletTable.user_id == delete_request.user_id
+                ).first()
+                transaction_count = self.db.query(TransactionTable).filter(
+                    or_(
+                        TransactionTable.sender_user_id == delete_request.user_id,
+                        TransactionTable.receiver_user_id == delete_request.user_id
+                    )
+                ).count()
+
+                request_list.append({
+                    "id": delete_request.id,
+                    "user_id": delete_request.user_id,
+                    "full_name": delete_request.full_name,
+                    "email_address": delete_request.email_address,
+                    "phone_number": (
+                        f"{delete_request.country_code or ''}{delete_request.phone_number or ''}"
+                        if delete_request.phone_number else None
+                    ),
+                    "reason": delete_request.reason,
+                    "requested_at": delete_request.requested_at,
+                    "scheduled_delete_at": delete_request.scheduled_delete_at,
+                    "is_processed": delete_request.is_processed,
+                    "processed_at": delete_request.processed_at,
+                    "account_exists": user is not None,
+                    "wallet_balance": float(wallet.balance) if wallet else 0,
+                    "wallet_currency": wallet.currency if wallet else "BDT",
+                    "transaction_count": transaction_count
+                })
+
+            return GlobalResponse(
+                success=True,
+                message="Delete account requests retrieved successfully",
+                data={"delete_requests": request_list},
+                pagination={
+                    "page": page,
+                    "limit": limit,
+                    "total": total,
+                    "total_pages": (total + limit - 1) // limit
+                }
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def approve_delete_account_request(
+        self,
+        request_id: int,
+        payload: DeleteAccountReviewRequest
+    ) -> GlobalResponse:
+        try:
+            delete_request = self.db.query(DeletedUserTable).filter(
+                DeletedUserTable.id == request_id
+            ).first()
+
+            if not delete_request:
+                raise HTTPException(status_code=404, detail="Delete account request not found")
+
+            if delete_request.is_processed:
+                raise HTTPException(status_code=400, detail="Delete account request already processed")
+
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == delete_request.user_id
+            ).first()
+
+            if not user:
+                delete_request.is_processed = True
+                delete_request.processed_at = Helpers.utc6dhaka()
+                delete_request.updated_at = Helpers.utc6dhaka()
+                self.db.commit()
+
+                return GlobalResponse(
+                    success=True,
+                    message="Delete account request marked as processed",
+                    data={"request_id": request_id}
+                )
+
+            sessions = self.db.query(SessionTable).filter(
+                SessionTable.user_id == user.user_id
+            ).all()
+            for session in sessions:
+                session.is_login = False
+                session.access_token_hash = None
+                session.refresh_token_hash = None
+                session.fcm_token = None
+                session.logout_at = Helpers.utc6dhaka()
+
+            if user.settings:
+                user.settings.account_locked = True
+
+            anonymized_email = f"d{delete_request.id}@deleted.local"
+            user.full_name = "Deleted User"
+            user.email_address = anonymized_email
+            user.country_code = None
+            user.phone_number = None
+            user.password_hash = None
+            user.profile_image_url = None
+            user.phone_verified = False
+            user.email_verified = False
+            user.link_google = None
+            user.updated_at = Helpers.utc6dhaka()
+
+            delete_request.is_processed = True
+            delete_request.processed_at = Helpers.utc6dhaka()
+            delete_request.updated_at = Helpers.utc6dhaka()
+
+            self.db.commit()
+
+            return GlobalResponse(
+                success=True,
+                message="Account deletion request approved successfully",
+                data={
+                    "request_id": request_id,
+                    "user_id": delete_request.user_id,
+                    "processed_at": delete_request.processed_at,
+                    "note": payload.note
+                }
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")
+
+    def reject_delete_account_request(
+        self,
+        request_id: int,
+        payload: DeleteAccountReviewRequest
+    ) -> GlobalResponse:
+        try:
+            delete_request = self.db.query(DeletedUserTable).filter(
+                DeletedUserTable.id == request_id
+            ).first()
+
+            if not delete_request:
+                raise HTTPException(status_code=404, detail="Delete account request not found")
+
+            if delete_request.is_processed:
+                raise HTTPException(status_code=400, detail="Delete account request already processed")
+
+            user = self.db.query(UserTable).filter(
+                UserTable.user_id == delete_request.user_id
+            ).first()
+
+            user_id = delete_request.user_id
+
+            if user and user.settings:
+                user.settings.account_locked = False
+
+            self.db.delete(delete_request)
+            self.db.commit()
+
+            return GlobalResponse(
+                success=True,
+                message="Delete account request rejected successfully",
+                data={
+                    "request_id": request_id,
+                    "user_id": user_id,
+                    "note": payload.note
+                }
+            )
+
+        except HTTPException:
+            raise
+
+        except Exception as e:
+            self.db.rollback()
+            print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}: {e}")
+            raise HTTPException(status_code=500, detail="Internal server error")

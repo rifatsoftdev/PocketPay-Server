@@ -200,7 +200,10 @@ class CountryService(TokenGenerators):
                     NotificationData(
                         user_id=user.user_id,
                         title="New Country Added Request Received",
-                        body=f"Your request to add {name} has been received and is being processed.",
+                        template="admin.custom",
+                        context={
+                            "body": f"Your request to add {name} has been received and is being processed.",
+                        },
                         noty_type=NotificationType.REQUEST
                     )
                 )

@@ -256,9 +256,16 @@ class BillServices(WalletService):
                 notificationServices.send_notification(
                     NotificationData(
                         user_id=user.user_id,
-                        title="Pay Bill Successful",
-                        short_body=f"You have successfully paid {provider.company_name} bill for account {request.bill_account} with {charge.amount} TK. Service Charge: {charge.charge} TK. Total Deducted: {charge.total} TK.",
-                        body=None,
+                        template="transaction.billpay",
+                        context={
+                            "amount": charge.amount,
+                            "provider": provider.company_name,
+                            "bill_account": request.bill_account,
+                            "service_charge": charge.charge,
+                            "total": charge.total,
+                            "reference": reference,
+                            "transaction_id": transaction_id,
+                        },
                         noty_type=NotificationType.BILLPAY,
                     )
                 )
@@ -361,5 +368,4 @@ class BillServices(WalletService):
             self.db.rollback()
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
 

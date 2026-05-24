@@ -281,7 +281,10 @@ class GoogleOauth(TokenGenerators, WalletService):
                 NotificationData(
                     user_id=user.user_id,
                     title="Google Account Linked",
-                    body="Your Google account was linked successfully.",
+                    template="admin.custom",
+                    context={
+                        "body": "Your Google account was linked successfully.",
+                    },
                     noty_type=NotificationType.ALERT,
                     push=True,
                     sms=False,
@@ -305,7 +308,6 @@ class GoogleOauth(TokenGenerators, WalletService):
         except Exception as e:
             print(f"{AnsiColor.RED}INFO{AnsiColor.RESET}:     {e}")
             raise HTTPException(status_code=500, detail=String.SERVER_ERROR)
-
 
 
 

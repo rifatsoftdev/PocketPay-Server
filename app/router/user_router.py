@@ -44,6 +44,8 @@ async def get_profile(
 
 
 
+# ==============================================================================
+
 @user_router.get("/edit-info", response_model=GlobalResponse)
 async def edit_info(
     request: Request,
@@ -62,6 +64,7 @@ async def edit_info(
 
 
 
+# ==============================================================================
 
 @user_router.post("/profile/update")
 async def update_profile(
@@ -106,13 +109,6 @@ async def update_profile(
 
 
 
-# ==============================================================================
-"""
-Uplode image
-
-request example
-post 
-"""
 # ==============================================================================
 
 @user_router.post("/image-upload")
@@ -165,9 +161,6 @@ async def upload_image(
 
 
 
-
-
-
 # ==============================================================================
 
 @user_router.post("/kyc/submit")
@@ -204,28 +197,6 @@ async def totp_enable(
         back_image=back_image,
         user_face_image=user_face_image
     )
-
-
-
-
-# ==============================================================================
-
-# @user_router.post("/2fa/disable")
-# async def totp_disable(
-#     payload: TOTPDisableRequest,
-#     request: Request,
-#     background_tasks: BackgroundTasks,
-#     authorization: str = Header(None),
-#     db: Session = Depends(get_db)
-# ):
-#     tfaService = TFAServices(
-#         db=db,
-#         background_tasks=background_tasks,
-#         request=request,
-#         authorization=authorization
-#     )
-
-#     return tfaService.totp_disable(payload=payload)
 
 
 

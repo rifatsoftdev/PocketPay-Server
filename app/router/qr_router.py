@@ -21,23 +21,8 @@ self, paybill, donation, sendmoney, recharge
 """
 
 
-# ==============================================================================
-"""
-QR Code mack
 
-request example
-post {
-    "qr_type": "self",
-    "full_name": "David",
-    "phone_number": "+8801812345677",
-    "email_address": "david@gmail.com",
-    "amount": 100,
-    "currency": "BDT"
-}
 
-response example
-
-"""
 # ==============================================================================
 
 @qr_router.post("/generate-qr")

@@ -36,29 +36,7 @@ bank_router = APIRouter()
 
 
 
-# ==============================================================================
-"""
-Get Banks List
 
-request example
-get /banks
-
-response example
-{
-    "success": true,
-    "message": "Bank list fetched successfully",
-    "data": {
-        "banks": [
-            {
-                "bank_id": "bank_id",
-                "bank_logo": "bank_logo",
-                "bank_name": "bank_name",
-                "description": "description"
-            }
-        ]
-    }
-}
-"""
 # ==============================================================================
 
 @bank_router.get("/banks")
@@ -79,38 +57,7 @@ async def get_banks(
 
 
 
-# ==============================================================================
-"""
-Transfer money from pocket wallet to bank account
 
-request example
-post /pocket2bank
-{
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "password": "password",
-
-    "bank_id": "bank_id",
-    "bank_account": "bank_account",
-    "bank_account_name": "bank_account_name",
-    "amount": "amount",
-    "reference": "reference"
-}
-
-response example
-{
-    "success": true,
-    "message": "Pocket to bank transfer successful",
-    "data": {
-        "transaction_id": "transaction_id",
-        "amount": "amount",
-        "status": "status"
-    }
-}
-
-"""
 # ==============================================================================
 
 @bank_router.post("/pocket2bank")
@@ -134,40 +81,6 @@ async def pocket_to_bank(
 
 
 
-
-
-# ==============================================================================
-"""
-Bank to pocket transfer
-
-request example
-post /bank2pocket
-{
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "password": "password",
-
-    "bank_id": "bank_id",
-    "bank_account": "bank_account",
-    "bank_account_name": "bank_account_name",
-    "amount": "amount",
-    "reference": "reference"
-}
-
-response example
-{
-    "success": true,
-    "message": "Bank to pocket transfer successful",
-    "data": {
-        "transaction_id": "transaction_id",
-        "amount": "amount",
-        "status": "status"
-    }
-}
-
-"""
 # ==============================================================================
 
 @bank_router.post("/bank2pocket")
@@ -189,3 +102,7 @@ async def bank_to_pocket(
     return bankServises.bank_to_pocket(payload=payload)
 
 
+
+
+# ==============================================================================
+# ==============================================================================

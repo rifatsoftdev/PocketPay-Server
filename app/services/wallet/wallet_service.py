@@ -370,8 +370,11 @@ class WalletService:
 
                     notificationServices.send_notification(NotificationData(
                         user_id=user_id,
-                        title=title,
-                        body=body,
+                        template="transaction.reward",
+                        context={
+                            "amount": amount,
+                            "reference": body or title,
+                        },
                         noty_type="reward",
                     ))
                     
@@ -513,15 +516,27 @@ class WalletService:
 
                 notificationServices.send_notification(NotificationData(
                     user_id=receiver.user_id,
-                    title="Money Received",
-                    body=f"You have received {charge.amount} TK from {sender_account}. Reference: {reference}.",
+                    template="transaction.receive_money",
+                    context={
+                        "amount": charge.amount,
+                        "sender": sender_account,
+                        "reference": reference,
+                        "transaction_id": transaction_id,
+                    },
                     noty_type="transaction",
                 ))
 
                 notificationServices.send_notification(NotificationData(
                     user_id=sender.user_id,
-                    title="Money Sent Successfully",
-                    body=f"You have sent {charge.amount} TK to {receiver_account}. Service Charge: {charge.charge} TK. Total Deducted: {charge.total} TK. Reference: {reference}.",
+                    template="transaction.send_money",
+                    context={
+                        "amount": charge.amount,
+                        "receiver": receiver_account,
+                        "service_charge": charge.charge,
+                        "total": charge.total,
+                        "reference": reference,
+                        "transaction_id": transaction_id,
+                    },
                     noty_type="transaction",
                 ))
 

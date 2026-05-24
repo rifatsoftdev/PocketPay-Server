@@ -1,112 +1,167 @@
-COMPANY_LOGO = "https://res.cloudinary.com/dgh76k5vn/image/upload/v1769602666/app_logo_ibnykm.png"
-COMPANY_NAME = "PocketPay"
-COMPANY_ADDRESS = "Bogura, Bangladesh"
-COMPANY_CONTACT  = "poketpay@gmail.com"
+from app.constants import String
+
+
+def main_structure(body: str):
+    return f"""
+<html>
+  <body style="margin:0; padding:0; font-family:'Helvetica Neue',Arial,sans-serif; background-color:#f5f6fa;">
+      <table align="center" width="100%" style="max-width:600px; margin:auto; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 0 15px rgba(0,0,0,0.1);">
+        
+          <!-- Header -->
+          <tr>
+              <td style="background-color:#1E88E5; padding:25px; text-align:center;">
+                  <img src="{String.COMPANY_LOGO}" alt="{String.COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
+              </td>
+          </tr>
+
+          <!-- Body -->
+          {body}
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color:#f1f2f6; padding:20px; text-align:center; font-size:12px; color:#777777;">
+              {String.COMPANY_NAME} | {String.COMPANY_ADDRESS} | {String.COMPANY_CONTACT}<br>
+              &copy; {String.COMPANY_NAME} {2026}
+            </td>
+          </tr>
+
+      </table>
+  </body>
+</html>
+"""
 
 
 class EmailTemplate:
-    # Welcome Email
     @staticmethod
     def welcome_email_template(name: str):
-        return f"""
-    <html>
-        <body style="margin:0; padding:0; font-family:'Helvetica Neue',Arial,sans-serif; background-color:#f5f6fa;">
-            <table align="center" width="100%" style="max-width:600px; margin:auto; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 0 15px rgba(0,0,0,0.1);">
-              
-                <!-- Header -->
-                <tr>
-                    <td style="background-color:#1E88E5; padding:25px; text-align:center;">
-                        <img src="{COMPANY_LOGO}" alt="{COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
-                    </td>
-                </tr>
+        return {
+            "title": "Welcome to PocketPay!",
+            "body": main_structure("""
+              <tr>
+                  <td style="padding:35px; text-align:center;">
+                      <h2 style="color:#333333; margin-bottom:15px;">Welcome, {name}!</h2>
+                      
+                      <p style="color:#555555; font-size:16px; line-height:1.5;">
+                          Thank you for joining <strong>{String.COMPANY_NAME}</strong>! We're excited to have you on board.
+                      </p>
 
-                <!-- Body -->
-                <tr>
-                    <td style="padding:35px; text-align:center;">
-                        <h2 style="color:#333333; margin-bottom:15px;">Welcome, {name}!</h2>
-                        
-                        <p style="color:#555555; font-size:16px; line-height:1.5;">
-                            Thank you for joining <strong>{COMPANY_NAME}</strong>! We're excited to have you on board.
-                        </p>
+                      <p style="color:#555555; font-size:16px; line-height:1.5;">
+                          Get ready to explore our services and enjoy seamless experiences with your new account.
+                      </p>
 
-                        <p style="color:#555555; font-size:16px; line-height:1.5;">
-                            Get ready to explore our services and enjoy seamless experiences with your new account.
-                        </p>
+                      <p style="color:#555555; font-size:16px; line-height:1.5; margin-top:25px;">
+                          If you have any questions, our support team is always here to help.
+                      </p>
 
-                        <p style="color:#555555; font-size:16px; line-height:1.5; margin-top:25px;">
-                            If you have any questions, our support team is always here to help.
-                        </p>
-
-                        <div style="text-align:center; margin-top:30px;">
-                            <a href="" style="display:inline-block; background-color:#1E88E5; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:6px; font-size:16px; font-weight:bold;">Get Started</a>
-                        </div>
-                    </td>
-                </tr>
-
-                <!-- Footer -->
-                <tr>
-                  <td style="background-color:#f1f2f6; padding:20px; text-align:center; font-size:12px; color:#777777;">
-                    {COMPANY_NAME} | {COMPANY_ADDRESS} | {COMPANY_CONTACT}<br>
-                    &copy; {COMPANY_NAME} {2026}
+                      <div style="text-align:center; margin-top:30px;">
+                          <a href="" style="display:inline-block; background-color:#1E88E5; color:#ffffff; text-decoration:none; padding:14px 28px; border-radius:6px; font-size:16px; font-weight:bold;">Get Started</a>
+                      </div>
                   </td>
-                </tr>
+              </tr>
+              """
+            )
+        }
 
-            </table>
-        </body>
-    </html>
-    """
-
-    # Otp Email
     @staticmethod
-    def otp_template(name: str, otp: str):
-        return f"""
+    def otp_email_template(name: str, email: str, otp: str):
+        return {
+            "title": "Your OTP Code for PocketPay",
+            "body": main_structure("""
+              <!-- Body -->
+              <tr>
+                <td style="padding:35px; text-align:center;">
+                  <h2 style="color:#333333; margin-bottom:15px;">Welcome, {name}!</h2>
+                  <p style="color:#555555; font-size:16px; line-height:1.5;">
+                    You're almost ready to start using <strong>{String.COMPANY_NAME}</strong>.  
+                    Please use the verification code below to confirm your email address.
+                  </p>
+
+                  <div style="margin:25px 0;">
+                    <span style="display:inline-block; font-size:36px; font-weight:bold; color:#1E88E5; padding:15px 30px; border:2px dashed #1E88E5; border-radius:8px;">{otp}</span>
+                  </div>
+
+                  <p style="color:#555555; font-size:15px; line-height:1.5;">
+                    This code is valid for the next 5 minutes.  
+                    If you did not request this, please ignore this email.
+                  </p>
+
+                  <p style="color:#999999; font-size:13px; margin-top:30px;">
+                    Thank you for choosing {String.COMPANY_NAME}. Let's get started!
+                  </p>
+                </td>
+              </tr>
+            """
+          )
+        }
+
+    @staticmethod
+    def login_alert_email_template(name: str, ip_address: str):
+        return {
+            "title": "New Login Detected 🔐",
+            "body": f"""
     <html>
       <body style="margin:0; padding:0; font-family:'Helvetica Neue',Arial,sans-serif; background-color:#f5f6fa;">
         <table align="center" width="100%" style="max-width:600px; margin:auto; background-color:#ffffff; border-radius:10px; overflow:hidden; box-shadow:0 0 15px rgba(0,0,0,0.1);">
-          <!-- Header with Company Logo -->
+          <!-- Header -->
           <tr>
             <td style="background-color:#1E88E5; padding:25px; text-align:center;">
-              <img src="{COMPANY_LOGO}" alt="{COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
+              <img src="{String.COMPANY_LOGO}" alt="{String.COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
             </td>
           </tr>
 
           <!-- Body -->
           <tr>
             <td style="padding:35px; text-align:center;">
-              <h2 style="color:#333333; margin-bottom:15px;">Welcome, {name}!</h2>
+              <h2 style="color:#333333; margin-bottom:15px;">Hi {name},</h2>
               <p style="color:#555555; font-size:16px; line-height:1.5;">
-                You're almost ready to start using <strong>{COMPANY_NAME}</strong>.  
-                Please use the verification code below to confirm your email address.
+                We detected a new login to your <strong>{String.COMPANY_NAME}</strong> account.
               </p>
 
-              <div style="margin:25px 0;">
-                <span style="display:inline-block; font-size:36px; font-weight:bold; color:#1E88E5; padding:15px 30px; border:2px dashed #1E88E5; border-radius:8px;">{otp}</span>
+              <div style="background-color:#f1f2f6; padding:18px; border-radius:8px; margin:20px 0; text-align:left; font-size:14px; color:#333333;">
+                <p style="margin:6px 0;"><strong>IP Address:</strong> {ip_address}</p>
+                <p style="margin:6px 0;"><strong>Location:</strong> Unknown</p>
+                <p style="margin:6px 0;"><strong>Time:</strong> Just now</p>
               </div>
 
               <p style="color:#555555; font-size:15px; line-height:1.5;">
-                This code is valid for the next 5 minutes.  
-                If you did not request this, please ignore this email.
+                If this was you, you can safely ignore this message. If you did not sign in, please secure your account immediately by resetting your password and reviewing recent activity.
               </p>
 
-              <p style="color:#999999; font-size:13px; margin-top:30px;">
-                Thank you for choosing {COMPANY_NAME}. Let's get started!
-              </p>
+              <div style="text-align:center; margin-top:25px;">
+                <a href="" style="display:inline-block; background-color:#E53935; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-size:15px; font-weight:bold;">Secure Account</a>
+              </div>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
             <td style="background-color:#f1f2f6; padding:20px; text-align:center; font-size:12px; color:#777777;">
-              {COMPANY_NAME} | {COMPANY_ADDRESS} | {COMPANY_CONTACT}<br>
-              &copy; {COMPANY_NAME} {2026}
+              {String.COMPANY_NAME} | {String.COMPANY_ADDRESS} | {String.COMPANY_CONTACT}<br>
+              &copy; {String.COMPANY_NAME} {2026}
             </td>
           </tr>
         </table>
       </body>
     </html>
     """
+        }
 
-    # Reset Password Email
+    @staticmethod
+    def kyc_update_email_template(name: str, status: str):
+        return {
+            "title": "KYC Verification Update",
+            "body": f"""
+    <html>
+      <body style="margin:0; padding:0; font-family:'Helvetica Neue',
+            """
+        }
+
+
+
+
+
+
+
     @staticmethod
     def reset_password_template(name: str, email: str, reset_link: str):
         return f"""
@@ -116,7 +171,7 @@ class EmailTemplate:
           <!-- Header -->
           <tr>
             <td style="background-color:#1E88E5; padding:25px; text-align:center;">
-              <img src="{COMPANY_LOGO}" alt="{COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
+              <img src="{String.COMPANY_LOGO}" alt="{String.COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
             </td>
           </tr>
 
@@ -137,7 +192,7 @@ class EmailTemplate:
               </p>
 
               <p style="color:#999999; font-size:13px; margin-top:30px;">
-                Thank you for using {COMPANY_NAME}. Stay secure!
+                Thank you for using {String.COMPANY_NAME}. Stay secure!
               </p>
             </td>
           </tr>
@@ -145,8 +200,8 @@ class EmailTemplate:
           <!-- Footer -->
           <tr>
             <td style="background-color:#f1f2f6; padding:20px; text-align:center; font-size:12px; color:#777777;">
-              {COMPANY_NAME} | {COMPANY_ADDRESS} | {COMPANY_CONTACT}<br>
-              &copy; {COMPANY_NAME} {2026}
+              {String.COMPANY_NAME} | {String.COMPANY_ADDRESS} | {String.COMPANY_CONTACT}<br>
+              &copy; {String.COMPANY_NAME} {2026}
             </td>
           </tr>
         </table>
@@ -154,7 +209,6 @@ class EmailTemplate:
     </html>
     """
 
-    # Money Sent Email
     @staticmethod
     def money_sent_template(user_name: str, recipient: str, amount: float, txn_id: str, date: str):
         return f"""
@@ -165,7 +219,7 @@ class EmailTemplate:
           <!-- Header -->
           <tr>
             <td style="background-color:#1E88E5; padding:25px; text-align:center;">
-              <img src="{COMPANY_LOGO}" alt="{COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
+              <img src="{String.COMPANY_LOGO}" alt="{String.COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
             </td>
           </tr>
 
@@ -190,7 +244,7 @@ class EmailTemplate:
               </p>
 
               <p style="color:#999999; font-size:13px; margin-top:25px; text-align:center;">
-                Thank you for using {COMPANY_NAME}. Your security is our top priority.
+                Thank you for using {String.COMPANY_NAME}. Your security is our top priority.
               </p>
             </td>
           </tr>
@@ -198,8 +252,8 @@ class EmailTemplate:
           <!-- Footer -->
           <tr>
             <td style="background-color:#f1f2f6; padding:20px; text-align:center; font-size:12px; color:#777777;">
-              {COMPANY_NAME} | {COMPANY_ADDRESS} | {COMPANY_CONTACT}<br>
-              &copy; {COMPANY_NAME} {2026}
+              {String.COMPANY_NAME} | {String.COMPANY_ADDRESS} | {String.COMPANY_CONTACT}<br>
+              &copy; {String.COMPANY_NAME} {2026}
             </td>
           </tr>
 
@@ -208,7 +262,6 @@ class EmailTemplate:
     </html>
     """
 
-    # General Notification Email
     @staticmethod
     def general_notification_template(name: str, title: str, message: str, button_text: str = None, button_link: str = None):
       button_html = f'''
@@ -225,7 +278,7 @@ class EmailTemplate:
       <!-- Header -->
       <tr>
         <td style="background-color:#1E88E5; padding:25px; text-align:center;">
-          <img src="{COMPANY_LOGO}" alt="{COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
+          <img src="{String.COMPANY_LOGO}" alt="{String.COMPANY_NAME} Logo" width="120" style="display:block; margin:auto;">
         </td>
       </tr>
 
@@ -237,7 +290,7 @@ class EmailTemplate:
           <p style="color:#555555; font-size:16px; line-height:1.5;">{message}</p>
           {button_html}
           <p style="color:#999999; font-size:13px; margin-top:25px;">
-            This is an automated notification from {COMPANY_NAME}. Please do not reply directly to this email.
+            This is an automated notification from {String.COMPANY_NAME}. Please do not reply directly to this email.
           </p>
         </td>
       </tr>
@@ -245,8 +298,8 @@ class EmailTemplate:
       <!-- Footer -->
       <tr>
         <td style="background-color:#f1f2f6; padding:20px; text-align:center; font-size:12px; color:#777777;">
-          {COMPANY_NAME} | {COMPANY_ADDRESS} | {COMPANY_CONTACT}<br>
-          &copy; {COMPANY_NAME} {2026}
+          {String.COMPANY_NAME} | {String.COMPANY_ADDRESS} | {String.COMPANY_CONTACT}<br>
+          &copy; {String.COMPANY_NAME} {2026}
         </td>
       </tr>
 
@@ -254,3 +307,4 @@ class EmailTemplate:
   </body>
 </html>
 """
+

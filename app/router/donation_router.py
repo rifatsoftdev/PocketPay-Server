@@ -19,26 +19,6 @@ dotenv.load_dotenv()
 
 
 # ==============================================================================
-"""
-Get Donations List
-
-request example
-get donation/donations
-
-response example
-{
-    "success": true,
-    "message": "Donations fetched successfully",
-    "data": {
-        "donations": [
-            {
-                
-            }
-        ]
-    }
-}
-"""
-# ==============================================================================
 
 @donation_router.get("/organization")
 async def get_donations(
@@ -57,29 +37,8 @@ async def get_donations(
     return donation_service.get_donations()
 
 
-# ==============================================================================
-"""
-Make Donation
 
-request example
-post {
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "password": "password",
 
-    "organization_id": "organization_id",
-    "amount": 100.0
-}
-
-response example
-{
-    "success": true,
-    "message": "Donation successfully",
-    "data": {}
-}
-"""
 # ==============================================================================
 
 @donation_router.post("/donate")
@@ -103,35 +62,7 @@ async def make_donation(
 
 
 
-# ==============================================================================
-"""
-Donation Organization Request
 
-request example
-post {
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "organization_name": "organization_name",
-    "description": "description",
-    "organization_logo": "organization_logo",
-    "organization_api": "organization_api",
-    "min_amount": 10.0,
-    "max_amount": 5000.0,
-    "meta_data": {}
-}
-
-response example
-{
-    "success": true,
-    "message": "Organization request submitted",
-    "data": {
-        "organization_id": 1,
-        "status": "pending"
-    }
-}
-"""
 # ==============================================================================
 @donation_router.post("/new-organization")
 async def organization_request(
@@ -150,29 +81,9 @@ async def organization_request(
 
     return donation_service.organization_request(payload=request)
 
-# ==============================================================================
-"""
-Donation Organization Remove Request
 
-request example
-post {
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "organization_id": 1
-}
 
-response example
-{
-    "success": true,
-    "message": "Organization remove request submitted",
-    "data": {
-        "organization_id": 1,
-        "status": "pending"
-    }
-}
-"""
+
 # ==============================================================================
 @donation_router.post("/remove-organization")
 async def organization_remove_request(
@@ -193,33 +104,6 @@ async def organization_remove_request(
 
 
 
-# ==============================================================================
-"""
-Donation Organization Edit Request
-
-request example
-post {
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid",
-    "organization_id": 1,
-    "organization_name": "organization_name",
-    "description": "description",
-    "organization_logo": "organization_logo",
-    "organization_api": "organization_api",
-    "min_amount": 10.0,
-    "max_amount": 5000.0,
-    "meta_data": {}
-}
-
-response example
-{
-    "success": true,
-    "message": "Organization updated successfully",
-    "data": {}
-}
-"""
 # ==============================================================================
 @donation_router.put("/organization-edit/{organization_id}")
 async def edit_organization(

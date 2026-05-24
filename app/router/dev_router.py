@@ -25,32 +25,6 @@ dev_router = APIRouter()
 
 
 
-
-# ==============================================================================
-"""
-Auto payment system for developer
-
-request example
-{
-    "user_id": "user_id",
-    "api_key": "api_key",
-    "secret_key": "secret_key",
-    "user_account": "user_account",
-    "amount": 100.0,
-    "refarence": "order-123"
-}
-
-response example
-{
-    "success": true,
-    "message": "Payment successful",
-    "data": {
-        "transaction_id": "transaction_id",
-        "amount": 100.0,
-        "status": "success"
-    }
-}
-"""
 # ==============================================================================
 
 @dev_router.post("/make-payment")
@@ -73,18 +47,6 @@ def auto_payment(
 
 
 
-
-# ==============================================================================
-"""
-Developer Connection
-
-request example
-ws://<host>/connect/<user_id>?api_key=<api_key>&secret_key=<secret_key>
-
-response example
-{"event": "payment_success", "transaction_id": "...", "...": "..."}
-"""
-
 # ==============================================================================
 @dev_router.websocket("/connect/{user_id}")
 async def dev_connect(websocket: WebSocket, user_id: str):
@@ -102,31 +64,6 @@ async def dev_connect(websocket: WebSocket, user_id: str):
 
 
 
-
-
-# ==============================================================================
-"""
-Developer Request
-
-request example
-{
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid"
-}
-
-response example
-{
-    "success": true,
-    "message": "Developer request submitted",
-    "data": {
-        "api_key": "DEVAPI...",
-        "secret_key": "DEVSEC...",
-        "status": false
-    }
-}
-"""
 
 # ==============================================================================
 @dev_router.post("/request-developer")
@@ -148,30 +85,6 @@ async def request_developer(
 
 
 
-
-# ==============================================================================
-"""
-Developer Cancel Request
-
-request example
-{
-    "user_id": "user_id",
-    "access_token": "access_token",
-    "android_id": "android_id",
-    "android_uuid": "android_uuid"
-}
-
-response example
-{
-    "success": true,
-    "message": "Developer request cancelled",
-    "data": {
-        "api_key": "DEVAPI...",
-        "secret_key": "DEVSEC...",
-        "status": false
-    }
-}
-"""
 
 # ==============================================================================
 @dev_router.post("/cancel-developer")

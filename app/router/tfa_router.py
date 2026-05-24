@@ -91,28 +91,6 @@ async def totp_disable(
 
 # ==============================================================================
 
-@tfa_router.post("/email-tfa-setup")
-async def email_tfa_setup(
-    payload: EmailTFASetupRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    authorization: str = Header(None),
-    db: Session = Depends(get_db)
-):
-    tfaService = TFAServices(
-        db=db,
-        background_tasks=background_tasks,
-        request=request,
-        authorization=authorization
-    )
-
-    return tfaService.email_setup(payload=payload)
-
-
-
-
-# ==============================================================================
-
 @tfa_router.post("/email-tfa-confirm")
 async def email_tfa_confirm(
     payload: EmailTFAConfirmRequest,
@@ -218,3 +196,9 @@ async def sms_tfa_disable(
     )
 
     return tfaService.sms_disable(payload=payload)
+
+
+
+
+# ==============================================================================
+# ==============================================================================

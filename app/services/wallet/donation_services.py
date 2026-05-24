@@ -130,8 +130,15 @@ class DonationServices(WalletService, TokenGenerators):
                 notificationServices.send_notification(
                     NotificationData(
                         user_id=user.user_id,
-                        title="Donation Successful",
-                        body=f"You have successfully donated to {organization.organization_name}. Amount: {payload.amount} TK. Total Deducted: {charge.total} TK.",
+                        template="transaction.donation",
+                        context={
+                            "amount": charge.amount,
+                            "organization": organization.organization_name,
+                            "service_charge": charge.charge,
+                            "total": charge.total,
+                            "reference": payload.refarence or "N/A",
+                            "transaction_id": transaction_id,
+                        },
                         noty_type=NotificationType.TRANSACTION,
                     )
                 )
